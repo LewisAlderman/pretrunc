@@ -97,6 +97,31 @@ describe("clamp", () => {
     runs,
   );
 
+  // Tail starts are found once per text and kept, which must never show.
+  it.prop(
+    "clamps the same whatever the text was clamped at before",
+    [
+      text,
+      Arbitrary.array(Arbitrary.all([between(40, 300), between(1, 5), at, flag, flag]), {
+        minLength: 2,
+        maxLength: 6,
+      }),
+    ],
+    ([s, calls]) => {
+      const p = prepareLines(s, FONT);
+      for (const [width, n, where, words, trim] of calls) {
+        const options = { at: where, words, trim };
+        const fresh = prepareLines(s, FONT);
+        assert.strictEqual(
+          clamp(p, width, n, options),
+          clamp(fresh, width, n, options),
+          JSON.stringify([s, calls]),
+        );
+      }
+    },
+    runs,
+  );
+
   it.prop(
     "keeps the head before the tail in a middle cut",
     [text, between(40, 300), between(1, 5)],
@@ -134,8 +159,13 @@ describe("clamp", () => {
       assert.isAtMost(head(narrow), head(wide), input);
       if (where === "middle") {
         const gained = head(wide) - head(narrow);
-        const dropped = p.text.slice(tail(narrow), tail(wide));
-        const oneWord = !/\S\s+\S/.test(dropped.trim());
+        // A trimming cut never starts a tail on white space or `,;:`, so the tail steps
+        // over them without giving them up as text.
+        const dropped = p.text
+          .slice(tail(narrow), tail(wide))
+          .replace(/[\s,;:]+/g, " ")
+          .trim();
+        const oneWord = !dropped.includes(" ");
         assert.isTrue(dropped.length <= gained || oneWord, input);
       } else assert.isAtLeast(tail(narrow), tail(wide), input);
     },

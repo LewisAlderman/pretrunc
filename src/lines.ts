@@ -57,10 +57,62 @@ interface Internal extends Lines {
   readonly tab: number;
   /** The last line region the core prepared: from, to, and its preparation. */
   r: readonly [number, number, Prepared] | undefined;
+  /** Where a tail may start: word starts, then every grapheme start, each found once. */
+  c: Starts | undefined;
+  d: Starts | undefined;
+}
+
+/**
+ * Tail starts in order: each one's offset, segment and grapheme index in the segment,
+ * and 1 when a trimming cut never starts a tail there, in white space or at `,;:`. `n`
+ * of them, then room to spare.
+ */
+interface Starts {
+  readonly at: Int32Array;
+  readonly seg: Int32Array;
+  readonly g: Int32Array;
+  readonly f: Uint8Array;
+  readonly n: number;
 }
 
 const START: LayoutCursor = { segmentIndex: 0, graphemeIndex: 0 };
 let segmenter: Intl.Segmenter | undefined;
+// The candidate tail starts of the clamp in progress, as indices into its `Starts`, -1
+// for the text's end. Shared and grown as needed, so a clamp allocates no list.
+let list = new Int32Array(64);
+let listed = 0;
+
+// Word starts are segment starts, which pretext already gives, so only a grapheme table
+// meets the segmenter, and only once a clamp needs one: without word preference, or
+// when no word start fits.
+const startsOf = (p: Internal, graphemes: boolean): Starts => {
+  const known = graphemes ? p.d : p.c;
+  if (known) return known;
+  const { l, s, text } = p;
+  const size = (graphemes ? text.length : l.segments.length) + 1;
+  const at = new Int32Array(size);
+  const seg = new Int32Array(size);
+  const g = new Int32Array(size);
+  const f = new Uint8Array(size);
+  let n = 0;
+  for (let i = 0; i < l.segments.length; i++) {
+    const segment = l.segments[i]!;
+    const space = /^\s+$/.test(segment);
+    let k = 0;
+    for (const grapheme of graphemes
+      ? (segmenter ??= new Intl.Segmenter()).segment(segment)
+      : [{ index: 0 }]) {
+      const offset = s[i]! + grapheme.index;
+      const code = text.charCodeAt(offset);
+      at[n] = offset;
+      seg[n] = i;
+      g[n] = k++;
+      f[n++] = +(space || code === 44 || code === 58 || code === 59);
+    }
+  }
+  const starts = { at, seg, g, f, n };
+  return graphemes ? (p.d = starts) : (p.c = starts);
+};
 
 export const prepareLines = (text: string, font: string, options: LinesOptions = {}): Lines => {
   const q: PretextOptions = {
@@ -78,7 +130,18 @@ export const prepareLines = (text: string, font: string, options: LinesOptions =
     options.whiteSpace === "pre-wrap"
       ? 8 * (fontFace(font).m(" ") + (options.letterSpacing ?? 0))
       : 0;
-  const p: Internal = { text: joined, l, font, s, o: options, q, tab, r: undefined };
+  const p: Internal = {
+    text: joined,
+    l,
+    font,
+    s,
+    o: options,
+    q,
+    tab,
+    r: undefined,
+    c: undefined,
+    d: undefined,
+  };
   return p;
 };
 
@@ -109,7 +172,6 @@ export const clamp = (
     typeof ellipsis === "number"
       ? ellipsis
       : fontFace(font).m(ellipsis) + spacing * ellipsis.length;
-  const segments = l.segments.length;
   const offset = (c: LayoutCursor) =>
     s[c.segmentIndex]! +
     (c.graphemeIndex
@@ -227,57 +289,63 @@ export const clamp = (
   // each end only ever grows or only ever shrinks.
   const share = at === "start" ? 0 : (n * ratio - line) * width;
   let h = at === "start" ? 0 : endCut(start, share, 0);
+  // The table the candidates index into, word starts or grapheme starts.
+  let c: Starts;
+  // Candidate `i`'s offset and line cursor; -1 is the text's end.
+  const offsetOf = (i: number) => (list[i]! < 0 ? length : c.at[list[i]!]!);
+  const cursorOf = (i: number): LayoutCursor =>
+    list[i]! < 0 ? START : { segmentIndex: c.seg[list[i]!]!, graphemeIndex: c.g[list[i]!]! };
   for (;;) {
     const used = share + ew;
-    // Where the tail may start, after the head (cutting nothing is no cut), with its
-    // cursor: word starts, or every grapheme start without word preference. When
-    // trimming, never white space nor `,;:`. The text's end always closes the list.
+    // Where the tail may start, after the head (cutting nothing is no cut): word starts,
+    // or every grapheme start without word preference. When trimming, never white space
+    // nor `,;:`. The text's end always closes the list.
     const starts = (wordsOnly: boolean) => {
-      const list: Array<readonly [number, LayoutCursor]> = [];
-      for (let i = 0; i < segments; i++) {
-        if (s[i + 1]! <= h || (trim && /^\s+$/.test(l.segments[i]!))) continue;
-        let g = 0;
-        for (const grapheme of (segmenter ??= new Intl.Segmenter()).segment(l.segments[i]!)) {
-          const at = s[i]! + grapheme.index;
-          if (at > h && !(trim && /[,;:]/.test(text[at]!))) {
-            list.push([at, { segmentIndex: i, graphemeIndex: g }]);
-          }
-          if (wordsOnly) break;
-          g++;
-        }
+      c = startsOf(p, !wordsOnly);
+      if (list.length < c.n + 1) list = new Int32Array(2 * (c.n + 1));
+      listed = 0;
+      let lo = 0;
+      let hi = c.n;
+      while (lo < hi) {
+        const mid = (lo + hi) >> 1;
+        if (c.at[mid]! > h) hi = mid;
+        else lo = mid + 1;
       }
-      list.push([length, START]);
-      return list;
+      for (let j = lo; j < c.n; j++) if (!(trim && c.f[j])) list[listed++] = j;
+      list[listed++] = -1;
     };
     // The first start whose tail fits the model: its lines, the first beside the head
     // and the ellipsis, end by line n. A later start never takes more lines.
-    const first = (list: ReturnType<typeof starts>) => {
+    const first = () => {
       let lo = 0;
-      let hi = list.length - 1;
+      let hi = listed - 1;
       while (lo < hi) {
         const mid = (lo + hi) >> 1;
-        if (linesFrom(list[mid]![1], width - used, n - line) <= n - line) hi = mid;
+        if (linesFrom(cursorOf(mid), width - used, n - line) <= n - line) hi = mid;
         else lo = mid + 1;
       }
       return lo;
     };
     // The cut settles on the real layout: later while it runs over, and, with no head
     // whose room it would take, earlier while one more start still fits.
-    const settle = (list: ReturnType<typeof starts>) => {
-      let i = first(list);
-      while (i < list.length - 1 && !fits(h, list[i]![0])) i++;
-      if (at === "start") while (i > 0 && fits(h, list[i - 1]![0])) i--;
+    const settle = () => {
+      let i = first();
+      while (i < listed - 1 && !fits(h, offsetOf(i))) i++;
+      if (at === "start") while (i > 0 && fits(h, offsetOf(i - 1))) i--;
       return i;
     };
-    let list = starts(words !== false);
-    let i = settle(list);
+    starts(words !== false);
+    let i = settle();
     // With no word start that really fits, the tail starts between graphemes, as the
     // core falls back. Only after settling: the model can pass a word start that the
     // joined layout refuses, when the ellipsis takes a line of its own.
-    if (i === list.length - 1 && words !== false) i = settle((list = starts(false)));
+    if (i === listed - 1 && words !== false) {
+      starts(false);
+      i = settle();
+    }
     // With no tail at all still running over, as when the room after leaves less than
     // the head took, the head gives up a grapheme and the tail is found again.
-    if (h <= from || i < list.length - 1 || fits(h, length)) return pack(h, list[i]![0]);
+    if (h <= from || i < listed - 1 || fits(h, length)) return pack(h, offsetOf(i));
     h = Math.max(from, back(h));
   }
 };

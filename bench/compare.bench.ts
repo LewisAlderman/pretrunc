@@ -293,6 +293,31 @@ describe("pretrunc against the prior art", () => {
     const oursWarm = time(() => {
       for (const p of prepared) clamp(p, width, 3);
     });
+    // Start and middle clamps search tail starts on the real layout; nothing in the prior
+    // art does either, so they're pretrunc's alone.
+    const elsewhere = (at: "start" | "middle"): Row => {
+      let kept: string[] = [];
+      const coldMs = time(() => {
+        cold();
+        kept = Array.map(paragraphs, (text) => {
+          const p = prepareLines(text, FONT);
+          return toText(p, clamp(p, width, 3, { at }));
+        });
+      });
+      const ready = Array.map(paragraphs, (text) => prepareLines(text, FONT));
+      for (const p of ready) clamp(p, width, 3, { at });
+      const warmMs = time(() => {
+        for (const p of ready) clamp(p, width, 3, { at });
+      });
+      return {
+        how: `pretrunc \`clamp\`, ${at}`,
+        cold: coldMs,
+        warm: warmMs,
+        overflows: overflowsLines(kept, width, 3),
+      };
+    };
+    const middle = elsewhere("middle");
+    const start = elsewhere("start");
 
     const joined = (lines: ReadonlyArray<string>, text: string) => {
       const kept = Array.join(lines, "");
@@ -340,7 +365,9 @@ describe("pretrunc against the prior art", () => {
       },
     ];
     rows.push(["500 paragraphs, end of 3 lines, 260 px", results]);
+    rows.push(["500 paragraphs, start or middle of 3 lines, 260 px", [start, middle]]);
     assert.strictEqual(results[0]!.overflows, 0);
+    assert.strictEqual(start.overflows + middle.overflows, 0);
     return report();
   });
 });
