@@ -1,0 +1,14 @@
+node_modules
+dist
+
+# Vitest browser-mode failure screenshots
+.vitest/
+
+# Per-user Claude Code settings, and worktrees whose sources would otherwise be
+# linted and format-checked from the main checkout
+.claude/settings.local.json
+.claude/worktrees/
+
+.DS_Store
+*.log
+*.tgz

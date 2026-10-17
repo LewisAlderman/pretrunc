@@ -1,4 +1,4 @@
-/** Measures text in one font. Canvas by default; a metrics table can stand in (#54). */
+/** Measures text in one font. Canvas by default; a metrics table can stand in (sprint-poker#54). */
 export interface Face {
   /** The width of a string in px, as one run of text. */
   readonly m: (text: string) => number;

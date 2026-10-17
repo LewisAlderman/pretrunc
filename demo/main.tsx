@@ -1,5 +1,5 @@
 // pretrunc's demo: every prop in a resizable frame, a playground with a control for each,
-// and a stress table. `vp run demo:pretrunc` serves it with hot reload. Keep it in step
+// and a stress table. `vp run demo` serves it with hot reload. Keep it in step
 // with the API: a new option gets a control here and, if it changes what people see, an
 // example.
 import "@fontsource-variable/inter";
@@ -382,7 +382,7 @@ function Gallery() {
         <Frame
           title="Without a canvas"
           note="Cut from Inter's metrics table, as a server or a worker cuts it."
-          code={`import inter from "./inter.ts"; // vp run metrics:pretrunc\nconst p = prepare(story, tableFace(inter, 16));`}
+          code={`import inter from "./inter.ts"; // vp run metrics\nconst p = prepare(story, tableFace(inter, 16));`}
         >
           <NoCanvas />
         </Frame>

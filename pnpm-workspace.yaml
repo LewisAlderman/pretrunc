@@ -1,0 +1,27 @@
+# pnpm settings for this package (this file marks the workspace root). The Solid
+# packages release in lockstep during the Solid 2.0 prerelease cycle, so they, the
+# pinned Effect toolchain and its platform binaries skip the minimumReleaseAge policy.
+# Drop the Solid entries once Solid 2.0 is stable.
+minimumReleaseAgeExclude:
+  - solid-js
+  - "@solidjs/*"
+  - "@effect/tsgo-darwin-arm64@0.53.1"
+  - "@effect/tsgo-darwin-x64@0.53.1"
+  - "@effect/tsgo-linux-arm64@0.53.1"
+  - "@effect/tsgo-linux-arm@0.53.1"
+  - "@effect/tsgo-linux-x64@0.53.1"
+  - "@effect/tsgo-win32-arm64@0.53.1"
+  - "@effect/tsgo-win32-x64@0.53.1"
+  - "@effect/tsgo@0.53.1"
+  - "@effect/vitest@4.0.5"
+  - effect@4.0.5
+catalog:
+  vite: npm:@voidzero-dev/vite-plus-core@1.2.0
+  vite-plus: 1.2.0
+overrides:
+  vite@*: "catalog:"
+peerDependencyRules:
+  allowAny:
+    - vite
+  allowedVersions:
+    vite: "*"

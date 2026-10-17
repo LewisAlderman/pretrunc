@@ -179,7 +179,7 @@ describe("clamp in a real engine", () => {
     { arbitrary: { runs: 50 } },
   );
 
-  it("keeps tabbed pre-wrap text to its lines when a tab under half a ch from its stop takes the next (#76)", () => {
+  it("keeps tabbed pre-wrap text to its lines when a tab under half a ch from its stop takes the next (sprint-poker#76)", () => {
     const beside = "中文\t~/Projects/atlas/src  poker\t~/Projects/atlas/src  ";
     const arabic = "مرحبا\t,\tمرحبا\nnaïve ";
     assert.isAtMost(wrapsTo(beside, 143, 3, "middle", false, "pre-wrap", 0, "…", 30), 3);

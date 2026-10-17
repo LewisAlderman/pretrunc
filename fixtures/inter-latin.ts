@@ -1,4 +1,4 @@
-// Written by packages/pretrunc/scripts/metrics.ts from inter-latin-wght-normal.woff2; don't edit.
+// Written by scripts/metrics.ts from inter-latin-wght-normal.woff2; don't edit.
 import type { Metrics } from "pretrunc/metrics";
 
 export default {

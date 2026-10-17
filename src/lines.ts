@@ -391,7 +391,7 @@ export const clamp = (
       if (t < 0) t = length;
       // When the real layout refused the model's start, the head's last word and the tail
       // wrap together: one more letter of head can push the ellipsis or the tail's first
-      // word to the next line and cost the tail more than it gave (#90). Then every
+      // word to the next line and cost the tail more than it gave (sprint-poker#90). Then every
       // shorter head back to the start of its line or of that word, whichever is earlier,
       // is tried, and the one that keeps the most text in all wins, the longest on a tie,
       // so a wider box doesn't show less. Text is counted without white space, which

@@ -1,5 +1,5 @@
 // Reads a font file and writes the widths pretrunc measures with where there is no
-// canvas: `vp run metrics:pretrunc <font file> <out.ts> [family]`. Every character the
+// canvas: `vp run metrics <font file> <out.ts> [family]`. Every character the
 // font maps, and every pair of them the font kerns, laid out with fontkit, which applies
 // the font's GPOS kerning. A variable font is read at its default instance. Plain loops,
 // not effect, since pretrunc carries no dependencies.
@@ -70,7 +70,7 @@ if (import.meta.main && file && out) {
   const metrics = readMetrics(file, family);
   writeFileSync(
     out,
-    `// Written by packages/pretrunc/scripts/metrics.ts from ${file.split("/").pop()}; don't edit.\n` +
+    `// Written by pretrunc's scripts/metrics.ts from ${file.split("/").pop()}; don't edit.\n` +
       `import type { Metrics } from "pretrunc/metrics";\n\n` +
       `export default ${JSON.stringify(metrics)} satisfies Metrics;\n`,
   );
