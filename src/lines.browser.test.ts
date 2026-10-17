@@ -140,8 +140,6 @@ describe("clamp in a real engine", () => {
     return lines;
   };
 
-  const webkit = !/Chrome\/|Firefox\//.test(navigator.userAgent);
-
   it.prop(
     "never wraps to more lines than asked, with pre-wrap, letter spacing and boxes",
     [
@@ -156,8 +154,6 @@ describe("clamp in a real engine", () => {
       Arbitrary.schema(Schema.Literals([0, 30])),
     ],
     (input) => {
-      // WebKit's tabs in pre-wrap can still run a line over (#76), pinned below.
-      if (webkit && input[5] === "pre-wrap" && input[0].includes("\t")) return;
       assert.isAtMost(wrapsTo(...input), input[2], JSON.stringify(input));
     },
     { arbitrary: { runs: 300 } },
@@ -183,7 +179,7 @@ describe("clamp in a real engine", () => {
     { arbitrary: { runs: 50 } },
   );
 
-  (webkit ? it.fails : it)("keeps tabbed pre-wrap text to its lines in WebKit too (#76)", () => {
+  it("keeps tabbed pre-wrap text to its lines when a tab under half a ch from its stop takes the next (#76)", () => {
     const beside = "中文\t~/Projects/atlas/src  poker\t~/Projects/atlas/src  ";
     const arabic = "مرحبا\t,\tمرحبا\nnaïve ";
     assert.isAtMost(wrapsTo(beside, 143, 3, "middle", false, "pre-wrap", 0, "…", 30), 3);

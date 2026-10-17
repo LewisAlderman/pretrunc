@@ -53,7 +53,7 @@ interface Internal extends Lines {
   readonly o: LinesOptions;
   /** pretext's options, as `prepareWithSegments` takes them. */
   readonly q: PretextOptions;
-  /** A tab's width at most, in `pre-wrap`: eight spaces. 0 in `normal`. */
+  /** A tab's width at most, in `pre-wrap`: eight spaces and half a `ch`. 0 in `normal`. */
   readonly tab: number;
   /** The last line region the core prepared: from, to, and its preparation. */
   r: readonly [number, number, Prepared] | undefined;
@@ -126,9 +126,13 @@ export const prepareLines = (text: string, font: string, options: LinesOptions =
   let joined = "";
   const s = [0];
   for (const segment of l.segments) s.push((joined += segment).length);
+  // A tab advances to the next stop, eight spaces apart, unless that is under half a `ch`
+  // away, when Firefox and WebKit take the stop after, as CSS Text says: so up to eight
+  // spaces and half a "0".
+  const face = fontFace(font);
   const tab =
     options.whiteSpace === "pre-wrap"
-      ? 8 * (widthOf(fontFace(font), " ") + (options.letterSpacing ?? 0))
+      ? 8 * (widthOf(face, " ") + (options.letterSpacing ?? 0)) + widthOf(face, "0") / 2
       : 0;
   const p: Internal = {
     text: joined,
@@ -197,10 +201,7 @@ export const clamp = (
     }
     return lines + +(extra > 0 && last + extra > width);
   };
-  // Text that fits shows whole, with nothing after it, so `after` takes no room here.
-  if (linesFrom(START, width, n, 0) <= n) return pack(length, length);
-
-  // The start of line `index` (from 0); the text has more lines than that.
+  // The start of line `index` (from 0); the model has more lines than that.
   const lineStart = (index: number) => {
     let c = START;
     for (let i = 0; i < index; i++) c = layoutNextLineRange(l, width, c)!.end;
@@ -230,9 +231,12 @@ export const clamp = (
   // Engines lay tabs out three ways, and pretext predicts none of them exactly under
   // letter spacing: Chrome and WebKit let a tab hang past the line's end, Firefox keeps
   // it with the word before and wraps the two together. So text with tabs is also
-  // checked with each tab as eight no-break spaces: as wide as a stop can take, and held
-  // to the text on both sides.
+  // checked with each tab as no-break spaces, as many as reach the widest a tab can
+  // take, held to the text on both sides.
   const tabbed = p.tab > 0 && text.includes("\t");
+  const nbsp = "\u00a0".repeat(
+    tabbed ? Math.ceil(p.tab / (widthOf(fontFace(font), "\u00a0") + spacing)) : 0,
+  );
   const { whiteSpace, wordBreak } = p.q;
   const layoutOptions = {
     ...(whiteSpace ? { whiteSpace } : {}),
@@ -260,7 +264,7 @@ export const clamp = (
     if (after) items.push({ width: after });
     return measureRichInlineStats(prepareRichInline(items, layoutOptions), width).lineCount <= n;
   };
-  const held = (text: string) => text.replaceAll("\t", "\u00a0".repeat(8));
+  const held = (text: string) => text.replaceAll("\t", nbsp);
   // Whether the cut keeping [0, h) and [at, length) really lays out in n lines. The
   // model lays the tail out apart from the head, and the joined line can wrap
   // differently: a tail that begins mid-word can't break where a line start could, and
@@ -278,10 +282,40 @@ export const clamp = (
     return h - graphemes[graphemes.length - 1]!.segment.length;
   };
 
-  if (at === "end") return pack(endCut(lineStart(n - 1), width - after, ellipsis), length);
+  // Text that fits shows whole, with nothing after it, so `after` takes no room here.
+  // Tabbed text must also fit with each tab at its widest, which the model doesn't know.
+  const fitted = linesFrom(START, width, n, 0);
+  if (fitted <= n) {
+    const all = held(text);
+    if (
+      !tabbed ||
+      (layout(prepareWithSegments(all, font, p.q), width, 1).lineCount <= n &&
+        measureRichInlineStats(
+          prepareRichInline(
+            [{ text: all, font, ...(spacing ? { letterSpacing: spacing } : {}) }],
+            layoutOptions,
+          ),
+          width,
+        ).lineCount <= n)
+    ) {
+      return pack(length, length);
+    }
+  }
+  // The model's lines, at most n. Tabbed text the model fits in fewer can still run
+  // over with its tabs at their widest, so the cut works within the lines it has.
+  const drawn = Math.min(n, fitted);
+
+  if (at === "end") {
+    let h = endCut(lineStart(drawn - 1), width - after, ellipsis);
+    // The core cuts the last line with each tab at its widest, but the lines before come
+    // from the model, so tabbed text is checked on the real layout too, as start and
+    // middle cuts are.
+    while (tabbed && h > 0 && !fits(h, length)) h = back(h);
+    return pack(h, length);
+  }
 
   // The text before the tail stays on lines [0, line) and `used` px of line `line`.
-  const line = at === "start" ? 0 : Math.min(n - 1, Math.floor(n * ratio));
+  const line = at === "start" ? 0 : Math.min(drawn - 1, Math.floor(n * ratio));
   const start = lineStart(line);
   const from = offset(start);
   // The head's share of its line. The tail gets the rest of that line whatever the head
@@ -358,9 +392,10 @@ export const clamp = (
       // When the real layout refused the model's start, the head's last word and the tail
       // wrap together: one more letter of head can push the ellipsis or the tail's first
       // word to the next line and cost the tail more than it gave (#90). Then every
-      // shorter head back to the start of that word, even on a line before, is tried, and
-      // the one that keeps the most text in all wins, the longest on a tie, so a wider box
-      // doesn't show less. Text is counted without white space, which shows as nothing.
+      // shorter head back to the start of its line or of that word, whichever is earlier,
+      // is tried, and the one that keeps the most text in all wins, the longest on a tie,
+      // so a wider box doesn't show less. Text is counted without white space, which
+      // shows as nothing.
       if (at === "middle" && slipped) {
         const ink = (a: number, b: number) => {
           let count = 0;
@@ -377,7 +412,7 @@ export const clamp = (
         }
         // Spaces are segments too: the word is the last start that isn't one.
         while (lo > 0 && words.f[lo - 1]) lo--;
-        const floor = lo ? words.at[lo - 1]! : 0;
+        const floor = Math.min(from, lo ? words.at[lo - 1]! : 0);
         let best = h;
         let bestTail = t;
         for (let shorter = h; shorter > floor;) {

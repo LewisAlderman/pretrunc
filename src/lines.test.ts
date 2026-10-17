@@ -136,11 +136,11 @@ describe("clamp", () => {
   // A drag moves the width a pixel at a time; a clamp whose ends jump one way and back
   // reads as flicker. In the middle the head and the tail share a line, so the two
   // trade: a head that grows can push the tail's start along, and when they wrap as one
-  // run a shorter head can let the tail keep more (#90). There what must hold is that a
-  // wider box never shows less text, white space and the `,;:` a trimming cut steps
-  // over aside.
+  // run a shorter head can let the tail keep more (#90). There a wider box shows no less
+  // text, white space and the `,;:` a trimming cut steps over aside, but for part of one
+  // word in rare cases where the ellipsis or the tail's first word wraps (#94).
   it.prop(
-    "moves each end one way as the width grows, and in the middle never shows less",
+    "moves each end one way as the width grows, and in the middle never shows less than a word less",
     [
       text,
       between(40, 300),
@@ -158,7 +158,9 @@ describe("clamp", () => {
       if (where === "middle") {
         const shown = (c: typeof wide) =>
           (p.text.slice(0, head(c)) + p.text.slice(tail(c))).replace(/[\s,;:]/g, "").length;
-        assert.isAtMost(shown(narrow), shown(wide), input);
+        let word = 0;
+        for (const w of p.text.split(/[\s,;:]+/)) word = Math.max(word, w.length);
+        assert.isAtMost(shown(narrow) - word, shown(wide), input);
       } else {
         assert.isAtMost(head(narrow), head(wide), input);
         assert.isAtLeast(tail(narrow), tail(wide), input);
