@@ -111,7 +111,8 @@ describe("clamp", () => {
   // A drag moves the width a pixel at a time; a clamp whose ends jump one way and back
   // reads as flicker. In the middle the head and the tail share a line, and a head
   // that grows within its share can push the tail's first word to the next line, so
-  // there the tail may give up what the head gains, never more.
+  // there the tail may give up what the head gains, never more. With word preference
+  // the tail starts only at words, so it gives up a whole one at a time.
   it.prop(
     "moves each end one way as the width grows: the head never gives up, nor the tail",
     [
@@ -130,8 +131,10 @@ describe("clamp", () => {
       const input = JSON.stringify([p.text, width, step, n, where, words]);
       assert.isAtMost(head(narrow), head(wide), input);
       if (where === "middle") {
-        const kept = (c: typeof wide) => head(c) + p.text.length - tail(c);
-        assert.isAtMost(kept(narrow), kept(wide), input);
+        const gained = head(wide) - head(narrow);
+        const dropped = p.text.slice(tail(narrow), tail(wide));
+        const oneWord = words && !/\S\s+\S/.test(dropped.trim());
+        assert.isTrue(dropped.length <= gained || oneWord, input);
       } else assert.isAtLeast(tail(narrow), tail(wide), input);
     },
     // Its failures sit at a few widths per text, so it runs more cases than the rest.

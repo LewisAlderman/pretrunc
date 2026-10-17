@@ -183,6 +183,26 @@ describe("cut", () => {
     { arbitrary: { runs: 3000 } },
   );
 
+  // Each search starts where the last one on the text ended, which must never show.
+  it.prop(
+    "cuts the same whatever the text was cut at before",
+    [text, Arbitrary.array(share, { minLength: 2, maxLength: 8 }), at, ratio, flag, flag, spacing],
+    ([s, shares, where, split, words, trim, by]) => {
+      const options = { at: where, ratio: split, words, trim };
+      const p = prepare(s, plain, { letterSpacing: by });
+      for (const q of shares) {
+        const width = widthFor(p, q);
+        const fresh = prepare(s, plain, { letterSpacing: by });
+        assert.strictEqual(
+          cut(p, width, options),
+          cut(fresh, width, options),
+          JSON.stringify([s, shares, width]),
+        );
+      }
+    },
+    runs,
+  );
+
   it.prop(
     "keeps something in a shaped font whenever one grapheme and the ellipsis fit",
     [text, share, Arbitrary.schema(Schema.Literals(["start", "end"]))],

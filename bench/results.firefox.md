@@ -6,16 +6,16 @@ Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:157.0) Gecko/20100101 Firefox/1
 
 | | cold ms | warm ms | overflows |
 | --- | ---: | ---: | ---: |
-| pretrunc `cut` | 19.0 | 2.0 | 0 |
-| pretext demo `clampLines` | 43.0 | 1.0 | 0 |
-| pretext-truncate `findTruncationPoint` | 45.0 | n/a | 16 |
+| pretrunc `cut` | 16.0 | 1.0 | 0 |
+| pretext demo `clampLines` | 32.0 | 1.0 | 0 |
+| pretext-truncate `findTruncationPoint` | 38.0 | n/a | 16 |
 
 ### 5,000 paths, middle of one line keeping the file name, 160 px
 
 | | cold ms | warm ms | overflows |
 | --- | ---: | ---: | ---: |
-| pretrunc `cut`, middle | 71.0 | 3.0 | 0 |
-| pretext demo `layoutMiddle` | 106.0 | 9.0 | 11 |
+| pretrunc `cut`, middle | 67.0 | 2.0 | 0 |
+| pretext demo `layoutMiddle` | 109.0 | 8.0 | 11 |
 
 ### 500 paragraphs, end of 3 lines, 260 px
 
@@ -23,4 +23,4 @@ Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:157.0) Gecko/20100101 Firefox/1
 | --- | ---: | ---: | ---: |
 | pretrunc `clamp` | 17.0 | 1.0 | 0 |
 | pretext demo `clampLines` | 13.0 | 1.0 | 0 |
-| pretext-truncate `findTruncationPoint` | 19.0 | n/a | 19 |
+| pretext-truncate `findTruncationPoint` | 21.0 | n/a | 19 |

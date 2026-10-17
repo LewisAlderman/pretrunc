@@ -43,6 +43,9 @@ interface Internal extends Prepared {
    * ellipsis after it, `[n + i]` between the ellipsis and grapheme `i`. NaN until needed.
    */
   j: Map<string, Float64Array> | undefined;
+  /** Where the last head search ended, and the last tail search: the next one starts there. */
+  v: number;
+  z: number;
 }
 
 export interface PrepareOptions {
@@ -250,6 +253,8 @@ const build = (
     s: spacing,
     g,
     j: undefined,
+    v: 0,
+    z: n,
   };
   return p;
 };
@@ -293,26 +298,54 @@ const beside = (i: number, side: number) => {
   return kerning;
 };
 
-// The largest `h` whose head fits `r` px, and the smallest `t` whose tail does.
+// The largest `h` whose head fits `r` px, and the smallest `t` whose tail does. A resize
+// moves a cut a grapheme or two, so each search gallops from where the last one on this
+// text ended, doubling its step until it brackets the answer, then bisects the bracket.
+// The widths only grow with `h`, so the answer is the one a plain bisection finds.
 const maxHead = (r: number) => {
   let lo = O;
   let hi = N;
+  let i = Math.max(P.v, O);
+  // `lo` always fits, as the empty head does even in no room, so it is never measured.
+  for (let step = 1; lo < hi; step *= 2) {
+    if (i === lo || headWidth(i) <= r) {
+      lo = i;
+      i += step;
+      if (i > hi) break;
+    } else {
+      hi = i - 1;
+      i -= step;
+      if (i < lo) break;
+    }
+  }
   while (lo < hi) {
     const mid = (lo + hi + 1) >> 1;
     if (headWidth(mid) <= r) lo = mid;
     else hi = mid - 1;
   }
-  return lo;
+  return (P.v = lo);
 };
 const minTail = (r: number) => {
   let lo = 0;
   let hi = N;
+  let i = P.z;
+  for (let step = 1; lo < hi; step *= 2) {
+    if (i === hi || tailWidth(i) <= r) {
+      hi = i;
+      i -= step;
+      if (i < lo) break;
+    } else {
+      lo = i + 1;
+      i += step;
+      if (i > hi) break;
+    }
+  }
   while (lo < hi) {
     const mid = (lo + hi) >> 1;
     if (tailWidth(mid) <= r) hi = mid;
     else lo = mid + 1;
   }
-  return lo;
+  return (P.z = lo);
 };
 
 // How wide a cut paints. When the model matched canvas over the whole text it is
