@@ -20,9 +20,10 @@ const budgets = {
   // the room after the text: 1.5 KB.
   "src/lines.ts": 1536,
   "src/solid-lines.tsx": 1024,
+  "src/metrics.ts": 600,
 };
 const packages = /^(solid-js|@solidjs\/|@chenglou\/)/;
-const siblings = /^\.\/(cut|face|dom|lines|solid)\.tsx?$/;
+const siblings = /^\.\/(cut|face|dom|lines|metrics|solid)\.tsx?$/;
 
 const bundle = (entry: string) =>
   Effect.promise(() =>

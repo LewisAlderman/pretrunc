@@ -10,6 +10,7 @@
     ".": "./src/index.ts",
     "./dom": "./src/dom.ts",
     "./lines": "./src/lines.ts",
+    "./metrics": "./src/metrics.ts",
     "./solid": "./src/solid.tsx",
     "./solid/lines": "./src/solid-lines.tsx"
   },

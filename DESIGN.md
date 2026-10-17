@@ -17,7 +17,7 @@ Cut text at its start, middle or end so it fits a width, on one line or across N
 | Hidden text                | The core returns offsets; the adapter renders either the kept text with a `title`, or the full text with the cut range collapsed.                                                                                                                                                                                                                                  |
 | Adapters                   | Solid 2 now. React later, in its own issue.                                                                                                                                                                                                                                                                                                                        |
 | Width and font             | Explicit `width` and `font` win; leave them out and the adapter observes the element.                                                                                                                                                                                                                                                                              |
-| SSR                        | Font metrics table, after the core. v1 designs the measurer interface so it drops in.                                                                                                                                                                                                                                                                              |
+| SSR                        | A font metrics table, read from the font file at build time: `pretrunc/metrics` measures with it where there is no canvas.                                                                                                                                                                                                                                         |
 | Size budget (min + brotli) | `pretrunc` ≤ 2.2 KB (1 KB was the first aim; every option above cost 1.4 KB, the speed work 1.8 KB, letter spacing, tabs and ranges 2.1 KB), `pretrunc/dom` ≤ 0.4 KB, `pretrunc/solid` ≤ 1 KB beyond the core (0.6 KB was the first aim), `pretrunc/lines` ≤ 1.5 KB plus pretext (1 KB held until `pre-wrap`, letter spacing and boxes). A test fails on a breach. |
 | First use                  | Seat names in sprint-poker, middle cut, in a self-hosted Inter Variable.                                                                                                                                                                                                                                                                                           |
 
@@ -107,6 +107,21 @@ The model lays head and tail out apart, and the joined line can wrap differently
 
 In `pre-wrap` the core counts a tab as the widest a stop can take, eight spaces, and the layout check also tries each tab as eight no-break spaces held to the text around it: Chrome and WebKit let a tab hang at a line's end and Firefox keeps it with the word before. WebKit still wraps some tabbed text a line further than any of those models (#76).
 
+## No canvas (`pretrunc/metrics`)
+
+```ts
+// vp run metrics:pretrunc node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2 src/inter.ts "Inter Variable"
+import inter from "./inter.ts";
+const p = prepare(name, tableFace(inter, 16)); // a server, a worker, or before the font loads
+globalThis.OffscreenCanvas = tableCanvas([inter]); // pretext, and so pretrunc/lines, without a browser
+```
+
+`scripts/metrics.ts` reads a font with fontkit, which opens WOFF2 and applies the font's GPOS kerning, and writes a module: each character's advance, every kerned pair among them, and the units per em. Inter's latin file gives 229 characters and 5,481 pairs: 63 KB, 18 KB gzipped, in 2.5 s. A variable font is read at its default instance, since fontkit's instancing loses the character map of a variable WOFF2.
+
+A cut made from the table has to fit the text the browser lays out, so the table is never narrower than an engine. Contextual rules reach past a pair (Inter spaces a colon out between digits, 1.3 px at 15 px), so each character is laid out between each two of a set of neighbours, and whatever the three take beyond their pairs goes on its advance; kerning is measured against each glyph alone, so it never takes the widening back. A character the table doesn't cover counts as 1.5 em. The engine tests check that the table measures Latin text no narrower than each engine's canvas and within 10% of it, and that cuts made from it fit the engine's layout.
+
+`tableCanvas` reads the size and the first family it has a table for from the context's `font`, line height and all, and falls back to the first table.
+
 ## DOM helpers (`pretrunc/dom`)
 
 Shared by every adapter, so the React adapter later is thin.
@@ -131,7 +146,7 @@ const handle = createCut({ text: name(), at: "middle" }) // ref, prepared and cu
 
 ## Not in v1
 
-Each has an issue: the font metrics table for SSR, workers and cutting before the font loads (#54), the React adapter (#55), extracting pretrunc to its own repo and publishing it to npm (#57), cold end cuts in WebKit, still behind pretext's demo (#66), and tabs in `pre-wrap` clamps in WebKit (#76, a bug). RTL text cuts in logical order and renders with the element's `dir`; mixed bidi text can reorder around a middle ellipsis, and v1 only documents that.
+Each has an issue: the React adapter (#55), extracting pretrunc to its own repo and publishing it to npm (#57), cold end cuts in WebKit, still behind pretext's demo (#66), and tabs in `pre-wrap` clamps in WebKit (#76, a bug). RTL text cuts in logical order and renders with the element's `dir`; mixed bidi text can reorder around a middle ellipsis, and v1 only documents that.
 
 ## Proof
 
