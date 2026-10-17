@@ -157,7 +157,7 @@ const handle = createCut({ text: name(), at: "middle" }) // ref, prepared and cu
 
 ## Not in v1
 
-Each has an issue: the React adapter (#2), and a middle clamp that can show part of a word less at a wider width (#1, a bug). RTL text cuts in logical order and renders with the element's `dir`; mixed bidi text can reorder around a middle ellipsis, and v1 only documents that.
+Each has an issue: the React adapter (#2), a middle clamp that can show part of a word less at a wider width (#1, a bug), and the Inter metrics table measuring narrower than Chromium on Linux, so its cuts can overflow there (#3, a bug). RTL text cuts in logical order and renders with the element's `dir`; mixed bidi text can reorder around a middle ellipsis, and v1 only documents that.
 
 Kept for later, with no issue: features a caller opts into by import, so a bundler drops the rest. Bundling the core with each one cut out (2026-10-17) gave its share of the 2,430 bytes: protected matches 165, middle cuts 146, word backoff 95, letter spacing 48, trimming 18, an element ellipsis 7; all of them at once, 409, leaving 2,021. Text above U+0300 is 92 more but isn't optional, since cutting emoji or combining marks wrongly breaks the never-overflow promise. A plugin registry would spend part of the 409 on its own plumbing and add a call per cut. The cheaper shape is exports that tree-shake, such as a separate `cutMiddle` and `protect: marks(/[^/]+$/g)` from an imported helper. Either way it saves nothing through `<Truncate>`, which takes every option as a prop. Worth deciding once real users' bundles show whether 400 bytes matters.
 
