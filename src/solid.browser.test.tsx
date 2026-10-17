@@ -3,6 +3,7 @@ import { cleanup, render } from "@solidjs/testing-library";
 import type { JSX } from "@solidjs/web";
 import { afterEach, assert, beforeAll, describe, expect, it } from "@effect/vitest";
 import { createSignal } from "solid-js";
+import { vi } from "vite-plus/test";
 import { page } from "vite-plus/test/browser/context";
 import { FontScope, Truncate } from "./solid.tsx";
 
@@ -84,6 +85,27 @@ describe("Truncate", () => {
     const own = document.querySelector(".own")!.textContent!;
     const scoped = document.querySelector(".scoped")!.textContent!;
     assert.isBelow(scoped.length, own.length * 0.7, JSON.stringify([own, scoped]));
+  });
+
+  it("cuts again on resize without measuring, the whole text painted", async () => {
+    const [width, setWidth] = createSignal(140);
+    render(() => (
+      <Box width={width()}>
+        <Truncate text={NAME} at="middle" render="full" />
+      </Box>
+    ));
+    await expect.element(page.getByText("…")).toBeInTheDocument();
+    let calls = -1;
+    const measured = vi.spyOn(OffscreenCanvasRenderingContext2D.prototype, "measureText");
+    try {
+      const before = document.body.textContent;
+      setWidth(220);
+      await expect.poll(() => document.body.textContent).not.toBe(before);
+      calls = measured.mock.calls.length;
+    } finally {
+      measured.mockRestore();
+    }
+    assert.strictEqual(calls, 0);
   });
 
   it("paints the whole text when asked, so copying it gives every character", async () => {

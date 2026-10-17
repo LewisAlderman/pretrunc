@@ -1,5 +1,6 @@
 import inter from "@fontsource-variable/inter/files/inter-latin-wght-normal.woff2?url";
 import { assert, beforeAll, describe, it } from "@effect/vitest";
+import { vi } from "vite-plus/test";
 import { Arbitrary, Array, Schema } from "effect";
 import { head, tail, toText, truncated } from "./cut.ts";
 import { clamp, prepareLines } from "./lines.ts";
@@ -48,6 +49,26 @@ const word = Arbitrary.schema(
   ]),
 );
 const text = Arbitrary.map(Arbitrary.array(word, { maxLength: 40 }), Array.join(" "));
+// Words the model can trust in Inter: no emoji, CJK or joined script, which are measured.
+const latinWord = Arbitrary.schema(
+  Schema.Literals([
+    "planning",
+    "poker",
+    "estimate",
+    "the",
+    "a",
+    "of",
+    "re-entry",
+    "Supercalifragilistic",
+    "~/Projects/atlas/src",
+    "AVATAR",
+    "office",
+    "naïve",
+    ",",
+    ".",
+  ]),
+);
+const latin = Arbitrary.map(Arbitrary.array(latinWord, { maxLength: 40 }), Array.join(" "));
 const between = (minimum: number, maximum: number) =>
   Arbitrary.schema(Schema.Int.pipe(Schema.check(Schema.isBetween({ minimum, maximum }))));
 const at = Arbitrary.schema(Schema.Literals(["start", "middle", "end"]));
@@ -140,6 +161,26 @@ describe("clamp in a real engine", () => {
       assert.isAtMost(wrapsTo(...input), input[2], JSON.stringify(input));
     },
     { arbitrary: { runs: 300 } },
+  );
+
+  it.prop(
+    "clamps Latin text again from cached widths, measuring nothing once warm",
+    [latin, at],
+    ([s, where]) => {
+      const p = prepareLines(s, FONT);
+      const widths = [180, 240, 320];
+      for (const width of widths) clamp(p, width, 2, { at: where });
+      let calls = -1;
+      const measured = vi.spyOn(OffscreenCanvasRenderingContext2D.prototype, "measureText");
+      try {
+        for (const width of widths) clamp(p, width, 2, { at: where });
+        calls = measured.mock.calls.length;
+      } finally {
+        measured.mockRestore();
+      }
+      assert.strictEqual(calls, 0, JSON.stringify([s, where]));
+    },
+    { arbitrary: { runs: 50 } },
   );
 
   (webkit ? it.fails : it)("keeps tabbed pre-wrap text to its lines in WebKit too (#76)", () => {

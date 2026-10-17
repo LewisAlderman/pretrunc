@@ -20,7 +20,7 @@ import {
   truncated,
 } from "./cut.ts";
 import { fontOf, observe, onFonts, spacingOf } from "./dom.ts";
-import { fontFace } from "./face.ts";
+import { fontFace, widthOf } from "./face.ts";
 
 export interface CutProps extends CutOptions {
   readonly text: string;
@@ -143,7 +143,7 @@ export const createCut = (props: CutProps, apart = false): CutHandle => {
     return apart && typeof ellipsis === "string"
       ? cut(p, width, {
           ...props,
-          ellipsis: fontFace(f).m(ellipsis) + box.spacing() * ellipsis.length,
+          ellipsis: widthOf(fontFace(f), ellipsis) + box.spacing() * ellipsis.length,
         })
       : cut(p, width, props);
   });

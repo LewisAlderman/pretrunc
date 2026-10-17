@@ -22,7 +22,7 @@ import {
   type Prepared,
   prepareRange,
 } from "./cut.ts";
-import { fontFace } from "./face.ts";
+import { fontFace, widthOf } from "./face.ts";
 
 /** Text prepared for laying out in lines with pretext. */
 export interface Lines {
@@ -128,7 +128,7 @@ export const prepareLines = (text: string, font: string, options: LinesOptions =
   for (const segment of l.segments) s.push((joined += segment).length);
   const tab =
     options.whiteSpace === "pre-wrap"
-      ? 8 * (fontFace(font).m(" ") + (options.letterSpacing ?? 0))
+      ? 8 * (widthOf(fontFace(font), " ") + (options.letterSpacing ?? 0))
       : 0;
   const p: Internal = {
     text: joined,
@@ -171,7 +171,7 @@ export const clamp = (
   const ew =
     typeof ellipsis === "number"
       ? ellipsis
-      : fontFace(font).m(ellipsis) + spacing * ellipsis.length;
+      : widthOf(fontFace(font), ellipsis) + spacing * ellipsis.length;
   const offset = (c: LayoutCursor) =>
     s[c.segmentIndex]! +
     (c.graphemeIndex
