@@ -61,7 +61,7 @@ export interface CutOptions {
   readonly tail?: number;
   /** Middle: the tail starts at protected match `keep` (from 0), when it fits. */
   readonly keep?: number;
-  /** Back off to a word boundary within a quarter of the room (true), within this many px, or never (false). Default true. */
+  /** Back off to a word boundary within a quarter of what that side keeps (true), within this many px, or never (false). Default true. */
   readonly words?: boolean | number;
   /** Drop spaces and `,;:` beside the ellipsis. Default true. */
   readonly trim?: boolean;
@@ -271,7 +271,8 @@ const grapheme = (i: number) => P.text.slice(P.b[i], P.b[i + 1]);
 const headWidth = (h: number) => (h > O ? P.w[h]! - P.w[O + 1]! + P.a[O]! : 0);
 // The tail alone: its first grapheme's own advance, without the kerning before it.
 const tailWidth = (t: number) => (t < N ? P.w[N]! - P.w[t + 1]! + P.a[t]! : 0);
-const isBreak = (i: number) => i === O || i === N || ((P.c[i - 1]! | P.c[i]!) & 1) !== 0;
+// A word boundary inside the text: backing off to either end would keep nothing.
+const isBreak = (i: number) => i > O && i < N && ((P.c[i - 1]! | P.c[i]!) & 1) !== 0;
 // Whether a cut before grapheme `i` falls inside a protected match.
 const inside = (i: number) => {
   const at = P.b[i]!;
@@ -343,6 +344,25 @@ const measure = (h: number, t: number) => {
   return painted;
 };
 
+// What a side paints beside the ellipsis: its text and the kerning across to it.
+const headSide = (h: number) =>
+  headWidth(h) + (J && h > O ? across(beside(h - 1, 0), P.s || P.c[h - 1]! & 1) : 0);
+const tailSide = (t: number) => tailWidth(t) + (J && t < N ? across(beside(t, 1), 1) : 0);
+// The most a side keeps within `budget`: the search, then a step or two for the
+// kerning beside the ellipsis, which the search leaves out.
+const fitHead = (budget: number) => {
+  let i = maxHead(budget);
+  while (i > O && headSide(i) > budget) i--;
+  while (i < N && headSide(i + 1) <= budget) i++;
+  return i;
+};
+const fitTail = (budget: number) => {
+  let i = minTail(budget);
+  while (i < N && tailSide(i) > budget) i++;
+  while (i > 0 && tailSide(i - 1) <= budget) i--;
+  return i;
+};
+
 let h = 0;
 let t = 0;
 // Shrink the cut a grapheme at a time until it fits, from the side that keeps more.
@@ -386,15 +406,19 @@ export const cutFrom = (
     J = undefined;
   }
 
-  // The head keeps graphemes [O, h) and the tail [t, N), in `r` px of text.
+  // The head keeps graphemes [O, h) and the tail [t, N), in `r` px of text. Each side
+  // keeps the most that fits its own share and never takes the other's slack, so as the
+  // width moves, each side only ever grows or only ever shrinks: the ellipsis doesn't
+  // drift a grapheme one way and back.
   const r = room - EW;
   h = N;
   t = N;
+  let pinned = false;
   if (at === "start") {
-    h = 0;
-    t = minTail(r);
+    h = O;
+    t = fitTail(r);
   } else if (at === "end") {
-    h = maxHead(r);
+    h = fitHead(r);
   } else {
     let fixed = -1;
     if (options.tail !== undefined) fixed = Math.max(0, N - options.tail);
@@ -402,26 +426,48 @@ export const cutFrom = (
       fixed = 0;
       while (fixed < N && k[b[fixed]!] !== options.keep + 1) fixed++;
     }
-    t =
-      fixed >= 0 && fixed < N && tailWidth(fixed) <= r
-        ? fixed
-        : minTail(r - w[maxHead(r * ratio)]!);
-    h = Math.min(t, maxHead(r - tailWidth(t)));
+    let head = r * ratio;
+    if (fixed >= 0 && fixed < N && tailSide(fixed) <= r) {
+      t = fixed;
+      head = r - tailSide(t);
+      pinned = true;
+    } else {
+      t = fitTail(r - head);
+      // A protected match the tail would split takes room from the head while all of
+      // it fits, instead of vanishing the moment it outgrows the tail's share; one that
+      // doesn't fit goes whole and leaves the head the room. Either way the cut switches
+      // once, at the width where the match starts to fit, never back and forth.
+      if (inside(t)) {
+        let start = t;
+        while (start > 0 && inside(start)) start--;
+        if (tailSide(start) <= r) t = start;
+        else while (t < N && inside(t)) t++;
+        head = r - tailSide(t);
+        pinned = true;
+      }
+    }
+    h = Math.min(t, fitHead(head));
   }
-  // The search leaves out the kerning beside the ellipsis and, where the model isn't
-  // trusted, shaping across graphemes: a pixel or two, so the cut settles by single
-  // graphemes. It shrinks until it fits, then each side grows while one more fits,
-  // which also finds a longer cut that a ligature paints narrower.
-  shrink();
-  if (at !== "start") while (h < t && measure(h + 1, t) <= room) h++;
-  if (at !== "end") while (t > h && measure(h, t - 1) <= room) t--;
+  // Text the model can't be trusted with settles on real measurements: shrink until it
+  // fits, then each side grows while one more fits, which also finds a longer cut that a
+  // ligature paints narrower.
+  if (!p.x) {
+    shrink();
+    if (at !== "start") while (h < t && measure(h + 1, t) <= room) h++;
+    if (at !== "end") while (t > h && measure(h, t - 1) <= room) t--;
+  }
   if (words !== false) {
-    const limit = words === true ? r / 4 : words;
+    // A quarter of what the side keeps, not of the room: a limit that grew with the width
+    // while the cut point held still would cross the distance to a break mid-grapheme and
+    // snap the side back a word, then forward again at the next grapheme.
+    let limit = words === true ? headWidth(h) / 4 : words;
     let i = h;
     while (i > O && !isBreak(i) && w[h]! - w[i - 1]! <= limit) i--;
     if (isBreak(i)) h = i;
+    // A tail fixed by `tail`, `keep` or a protected match already starts where it should.
+    if (words === true) limit = tailWidth(t) / 4;
     i = t;
-    while (i < N && !isBreak(i) && w[i + 1]! - w[t]! <= limit) i++;
+    while (!pinned && i < N && !isBreak(i) && w[i + 1]! - w[t]! <= limit) i++;
     if (isBreak(i)) t = i;
   }
   while (h > O && (inside(h) || (trim && p.c[h - 1]! & 2))) h--;

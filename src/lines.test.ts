@@ -81,8 +81,8 @@ describe("clamp", () => {
   );
 
   it.prop(
-    "starts the tail as early as fits: one grapheme earlier runs over",
-    [text, between(40, 300), between(1, 5), Arbitrary.schema(Schema.Literals(["start", "middle"]))],
+    "starts a start clamp's tail as early as fits: one grapheme earlier runs over",
+    [text, between(40, 300), between(1, 5), Arbitrary.schema(Schema.Literals(["start"]))],
     ([s, width, n, where]) => {
       const p = prepareLines(s, FONT);
       const c = clamp(p, width, n, { at: where, words: false, trim: false });
@@ -107,6 +107,44 @@ describe("clamp", () => {
     },
     runs,
   );
+
+  // A drag moves the width a pixel at a time; a clamp whose ends jump one way and back
+  // reads as flicker. In the middle the head and the tail share a line, and a head
+  // that grows within its share can push the tail's first word to the next line, so
+  // there the tail may give up what the head gains, never more.
+  it.prop(
+    "moves each end one way as the width grows: the head never gives up, nor the tail",
+    [
+      text,
+      between(40, 300),
+      Arbitrary.schema(Schema.Literals([0.25, 1, 3, 12])),
+      between(1, 5),
+      at,
+      flag,
+    ],
+    ([s, width, step, n, where, words]) => {
+      const p = prepareLines(s, FONT);
+      const narrow = clamp(p, width, n, { at: where, words });
+      const wide = clamp(p, width + step, n, { at: where, words });
+      if (!truncated(wide)) return;
+      const input = JSON.stringify([p.text, width, step, n, where, words]);
+      assert.isAtMost(head(narrow), head(wide), input);
+      if (where === "middle") {
+        const kept = (c: typeof wide) => head(c) + p.text.length - tail(c);
+        assert.isAtMost(kept(narrow), kept(wide), input);
+      } else assert.isAtLeast(tail(narrow), tail(wide), input);
+    },
+    // Its failures sit at a few widths per text, so it runs more cases than the rest.
+    { arbitrary: { runs: 20000 } },
+  );
+});
+
+describe("clamp examples", () => {
+  it("keeps a tail when the ellipsis takes a line of its own (#87)", () => {
+    const p = prepareLines("x/y Supercalifragilistic", FONT);
+    // At 42 px "…" ends its line, so the word start can't follow it; graphemes can.
+    assert.strictEqual(toText(p, clamp(p, 42, 4, { at: "start" })), "…percalifragilistic");
+  });
 });
 
 describe("clamp with every option", () => {

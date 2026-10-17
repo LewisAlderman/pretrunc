@@ -191,7 +191,7 @@ function Gallery() {
       <div class="gallery">
         <Frame
           title="End, backing off to a word"
-          note="The default. A cut near a space backs off to it, within a quarter of the room."
+          note="The default. A cut near a space backs off to it, within a quarter of what that side keeps."
           code={`<Truncate text={name} />`}
         >
           <div class="strip">

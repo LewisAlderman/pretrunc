@@ -11,7 +11,7 @@ const budgets = {
   // 1,024 was the first aim; every option the design picked cost 1.4 KB, the speed work
   // against the benchmark (bench/) 1.8 KB, and letter spacing, tabs and cutting from a
   // range of a longer text 2.1 KB.
-  "src/index.ts": 2240,
+  "src/index.ts": 2368,
   "src/dom.ts": 400,
   // 600 was a guess before it was built; both renderings, width tracking and letter
   // spacing cost 980.

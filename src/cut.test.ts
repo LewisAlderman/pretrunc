@@ -40,7 +40,8 @@ const boundaries = (s: string) => [
 ];
 
 // Pieces that reach every path in the cut: pair kerning, ellipsis kerning, the shaped
-// runs, collapsing white space, breaks, trimmed punctuation and multi-unit graphemes.
+// runs, collapsing white space, breaks, trimmed punctuation, multi-unit graphemes, and
+// words long enough that a cut inside one is far from a boundary.
 const piece = Arbitrary.schema(
   Schema.Literals([
     "a",
@@ -60,6 +61,8 @@ const piece = Arbitrary.schema(
     ",",
     ".",
     "ffi",
+    "Wolfgangamadeus",
+    "Featherstonehaugh",
     "AVA",
     "To",
     "é",
@@ -134,14 +137,50 @@ describe("cut", () => {
       const b = boundaries(p.text);
       const h = b.indexOf(head(c));
       const t = b.indexOf(tail(c));
-      const fits = (hh: number, tt: number) =>
-        hh <= tt &&
-        envelope(p.text.slice(0, b[hh]) + "…" + p.text.slice(b[tt]), by) <= width - 1 / 64;
       const input = JSON.stringify([p.text, width, where, split, toText(p, c)]);
-      if (where !== "start") assert.isFalse(fits(h + 1, t), input);
-      if (where !== "end") assert.isFalse(t > 0 && fits(h, t - 1), input);
+      if (where !== "middle") {
+        const fits = (hh: number, tt: number) =>
+          hh <= tt &&
+          envelope(p.text.slice(0, b[hh]) + "…" + p.text.slice(b[tt]), by) <= width - 1 / 64;
+        if (where === "end") assert.isFalse(fits(h + 1, t), input);
+        else assert.isFalse(t > 0 && fits(h, t - 1), input);
+        return;
+      }
+      // In the middle each side fills its own share of the room, the kerning across to
+      // the ellipsis included.
+      const e = envelope("…", by);
+      const room = width - 1 / 64 - e;
+      const headSide = (hh: number) => envelope(p.text.slice(0, b[hh]) + "…", by) - e;
+      const tailSide = (tt: number) => envelope("…" + p.text.slice(b[tt]), by) - e;
+      if (h + 1 <= t) assert.isAbove(headSide(h + 1), split * room, input);
+      if (t - 1 >= h && t > 0) assert.isAbove(tailSide(t - 1), (1 - split) * room, input);
     },
     runs,
+  );
+
+  // A drag moves the width a fraction of a pixel at a time, so this walks 20 px in
+  // quarter-pixel steps: a rule that scales with the width can flip while the cut point
+  // stays on one grapheme. Such a flip needs word backoff and a break in a window a
+  // quarter of a grapheme wide, so this property always backs off and runs more cases
+  // than the rest.
+  it.prop(
+    "moves each side one way as the width grows: the head never gives up, nor the tail",
+    [text, share, at, ratio, flag, spacing],
+    ([s, q, where, split, trim, by]) => {
+      const p = prepare(s, plain, { letterSpacing: by });
+      const options = { at: where, ratio: split, trim };
+      let last = cut(p, widthFor(p, q), options);
+      for (let i = 1; i <= 80; i++) {
+        const width = widthFor(p, q) + i / 4;
+        const next = cut(p, width, options);
+        if (!truncated(next)) break;
+        if (head(next) < head(last) || tail(next) > tail(last)) {
+          assert.fail(JSON.stringify([p.text, width, where, split, trim, by]));
+        }
+        last = next;
+      }
+    },
+    { arbitrary: { runs: 3000 } },
   );
 
   it.prop(
@@ -212,7 +251,7 @@ describe("cut examples", () => {
 
   it("backs off to the last word at the end", () => {
     const name = p("Alexandra Richardson");
-    // "Alexandra Ri…" is 91 px. Backing off over "Ri" drops 13 px, inside a quarter of the room.
+    // "Alexandra Ri…" is 91 px. Backing off over "Ri" drops 13 px, inside a quarter of the head.
     assert.strictEqual(toText(name, cut(name, 92)), "Alexandra…");
     assert.strictEqual(toText(name, cut(name, 92, { words: false })), "Alexandra Ri…");
   });
@@ -230,6 +269,19 @@ describe("cut examples", () => {
     const path = p("~/Projects/atlas/src/layout.ts", /[^/]+$/g);
     const c = cut(path, 140, { at: "middle", keep: 0 });
     assert.isTrue(toText(path, c).endsWith("…layout.ts"));
+  });
+
+  it("keeps a protected file name wider than the tail's share while it fits, then gives its room to the head", () => {
+    const path = p("~/Projects/atlas/src/line-breaker.test.ts", /[^/]+$/g);
+    // "line-breaker.test.ts" is 132 px, past half of the 188 px beside the ellipsis.
+    const c = cut(path, 200, { at: "middle" });
+    assert.isTrue(toText(path, c).endsWith("…line-breaker.test.ts"));
+    assert.isTrue(toText(path, c).startsWith("~/"));
+    // At 120 px it doesn't fit, so it goes whole and the head takes all the room.
+    assert.strictEqual(
+      toText(path, cut(path, 120, { at: "middle" })),
+      toText(path, cut(path, 120, { at: "end" })),
+    );
   });
 
   it("keeps the last graphemes asked for", () => {

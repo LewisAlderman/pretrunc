@@ -162,8 +162,9 @@ export const clamp = (
   };
 
   // pretext's plain and rich-inline layouts can each be the one that matches an engine,
-  // so the final check is the stricter of them.
-  const room = width - 1 / 64;
+  // so the final check is the stricter of them. It lays out at the model's width: a
+  // line that fit the model and not a narrower check shifted the tail at some widths
+  // and not the next. The last line's cut keeps its own slack in the core.
   // Engines lay tabs out three ways, and pretext predicts none of them exactly under
   // letter spacing: Chrome and WebKit let a tab hang past the line's end, Firefox keeps
   // it with the word before and wraps the two together. So text with tabs is also
@@ -180,7 +181,7 @@ export const clamp = (
   const within = (before: string, rest: string) => {
     if (typeof ellipsis === "string" && !after) {
       const plain = prepareWithSegments(before + ellipsis + rest, font, p.q);
-      if (layout(plain, room, 1).lineCount > n) return false;
+      if (layout(plain, width, 1).lineCount > n) return false;
     }
     const items: Array<RichInlineItem | RichInlineBox> = [];
     const words = (text: string) => {
@@ -195,7 +196,7 @@ export const clamp = (
       words(rest);
     }
     if (after) items.push({ width: after });
-    return measureRichInlineStats(prepareRichInline(items, layoutOptions), room).lineCount <= n;
+    return measureRichInlineStats(prepareRichInline(items, layoutOptions), width).lineCount <= n;
   };
   const held = (text: string) => text.replaceAll("\t", "\u00a0".repeat(8));
   // Whether the cut keeping [0, h) and [at, length) really lays out in n lines. The
@@ -221,9 +222,13 @@ export const clamp = (
   const line = at === "start" ? 0 : Math.min(n - 1, Math.floor(n * ratio));
   const start = lineStart(line);
   const from = offset(start);
-  let h = at === "start" ? 0 : endCut(start, (n * ratio - line) * width, 0);
+  // The head's share of its line. The tail gets the rest of that line whatever the head
+  // keeps of its share, so neither end takes the other's slack and, as the width moves,
+  // each end only ever grows or only ever shrinks.
+  const share = at === "start" ? 0 : (n * ratio - line) * width;
+  let h = at === "start" ? 0 : endCut(start, share, 0);
   for (;;) {
-    const used = (h > from ? fontFace(font).m(text.slice(from, h)) + spacing * (h - from) : 0) + ew;
+    const used = share + ew;
     // Where the tail may start, after the head (cutting nothing is no cut), with its
     // cursor: word starts, or every grapheme start without word preference. When
     // trimming, never white space nor `,;:`. The text's end always closes the list.
@@ -256,14 +261,20 @@ export const clamp = (
       }
       return lo;
     };
+    // The cut settles on the real layout: later while it runs over, and, with no head
+    // whose room it would take, earlier while one more start still fits.
+    const settle = (list: ReturnType<typeof starts>) => {
+      let i = first(list);
+      while (i < list.length - 1 && !fits(h, list[i]![0])) i++;
+      if (at === "start") while (i > 0 && fits(h, list[i - 1]![0])) i--;
+      return i;
+    };
     let list = starts(words !== false);
-    let i = first(list);
-    // With no word start that fits, the tail starts between graphemes, as the core falls back.
-    if (i === list.length - 1 && words !== false) i = first((list = starts(false)));
-    // The cut settles on the real layout: later while it runs over, then earlier while
-    // one more start still fits.
-    while (i < list.length - 1 && !fits(h, list[i]![0])) i++;
-    while (i > 0 && fits(h, list[i - 1]![0])) i--;
+    let i = settle(list);
+    // With no word start that really fits, the tail starts between graphemes, as the
+    // core falls back. Only after settling: the model can pass a word start that the
+    // joined layout refuses, when the ellipsis takes a line of its own.
+    if (i === list.length - 1 && words !== false) i = settle((list = starts(false)));
     // With no tail at all still running over, as when the room after leaves less than
     // the head took, the head gives up a grapheme and the tail is found again.
     if (h <= from || i < list.length - 1 || fits(h, length)) return pack(h, list[i]![0]);

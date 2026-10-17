@@ -3,6 +3,7 @@ import { assert, beforeAll, describe, it } from "@effect/vitest";
 import { Arbitrary, Array, Schema } from "effect";
 import {
   cut,
+  type CutOptions,
   type Cut,
   face,
   fontFace,
@@ -152,5 +153,45 @@ describe("cut in a real engine", () => {
       assert.strictEqual(calls, 0, JSON.stringify(p.text));
     },
     { arbitrary: { runs: 100 } },
+  );
+
+  // The cuts over quarter-pixel steps where a side gives something up, as a dragged box
+  // would show them.
+  const reversals = (p: Prepared, from: number, to: number, options: CutOptions) => {
+    const found: Array<string> = [];
+    let last = cut(p, from, options);
+    for (let width = from + 0.25; width <= to; width += 0.25) {
+      const next = cut(p, width, options);
+      if (!truncated(next)) break;
+      if (head(next) < head(last) || tail(next) > tail(last)) {
+        found.push(JSON.stringify([width, toText(p, last), toText(p, next)]));
+      }
+      last = next;
+    }
+    return found;
+  };
+
+  it("switches a path's middle cut once while its box is dragged wider: when the file name fits", () => {
+    const p = prepare(
+      "~/Projects/atlas/packages/renderer/src/text/layout/line-breaker.test.ts",
+      fontFace(FONT),
+      { protect: /[^/]+$/g },
+    );
+    const found = reversals(p, 100, 460, { at: "middle" });
+    assert.strictEqual(found.length, 1, Array.join(found, "\n"));
+    assert.isTrue(found[0]!.endsWith('"…line-breaker.test.ts"]'), found[0]);
+  });
+
+  // Only Latin: in a script that joins, a longer cut can paint narrower, and no cut
+  // over a width that doesn't add up can promise that a side only grows.
+  it.prop(
+    "moves each side one way as the width grows",
+    [textOf(latin), share, at, flag],
+    ([s, q, where, trim]) => {
+      const p = prepare(s, fontFace(FONT));
+      const from = widthFor(p, q);
+      assert.deepStrictEqual(reversals(p, from, from + 20, { at: where, trim }), [], p.text);
+    },
+    runs,
   );
 });
