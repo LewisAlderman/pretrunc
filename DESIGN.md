@@ -127,7 +127,7 @@ const handle = createCut({ text: name(), at: "middle" }) // ref, prepared and cu
 
 ## Not in v1
 
-Each has an `idea` issue: the font metrics table for SSR, workers and cutting before the font loads (#54), the React adapter (#55), letter spacing in the single-line core (#56), and extracting pretrunc to its own repo and publishing it to npm (#57). RTL text cuts in logical order and renders with the element's `dir`; mixed bidi text can reorder around a middle ellipsis, and v1 only documents that.
+Each has an `idea` issue: the font metrics table for SSR, workers and cutting before the font loads (#54), the React adapter (#55), letter spacing in the single-line core (#56), and extracting pretrunc to its own repo and publishing it to npm (#57). Left after building it: a clamp prepares its text twice (#65), cold end cuts trail pretext's demo in Chromium and WebKit (#66), the core's size budget (#67), `pre-wrap` in `pretrunc/lines` (#68), and start and middle clamps with a width-only ellipsis (#69, a bug). RTL text cuts in logical order and renders with the element's `dir`; mixed bidi text can reorder around a middle ellipsis, and v1 only documents that.
 
 ## Proof
 
