@@ -89,18 +89,17 @@ A secant search over the room was tried and dropped: it stalled on misses smalle
 ## Multi-line API (`pretrunc/lines`)
 
 ```ts
-const p = prepareLines(text, font, { whiteSpace, wordBreak, letterSpacing }); // wraps pretext's prepareWithSegments
-const c = clamp(p, width, 3, { at: "end", words: true, ellipsis: "… more" });
+const p = prepareLines(text, font, { wordBreak, protect }); // wraps pretext's prepareWithSegments
+const c = clamp(p, width, 3, { at: "end", words: true, ellipsis: "…" });
 lessFits(p, width, lessWidth); // whether "less" fits after the last line once expanded
 ```
 
-Offsets refer to `p.text`, the concatenation of pretext's segments, so the same `head`, `tail` and `toText` helpers apply.
+pretext collapses white space the way the core does, so its segments join to the same text, `p.text`, and the same `head`, `tail` and `toText` helpers apply. v1 lays out `white-space: normal` only.
 
-- **End:** walk the first N−1 lines with `layoutNextLineRange`, which builds no strings. If the rest fits on one line, nothing is cut. Otherwise run the core's end cut on the remainder of line N. Kept text rendered in a wrapping block re-wraps to the same lines, because greedy wrapping of a prefix gives the prefix's lines.
-- **Start:** keep the last N lines. pretext's line streams accept any cursor, including one partway through a word, and a width per line. So each candidate start `j` is a probe of N lines, the first `width − ellipsis` wide, laid out from `j` over the existing prepared handle: no new `prepare`, no measuring, pure arithmetic. Binary search over `j`: O(N log n). Snap `j` forward to a word start when `words` is on.
-- **Middle:** the head fills `ratio × N × width` of area, ending at offset `k` on line `h` at x position `x`. The tail start `j` is the smallest whose lines, laid out from `j` with a first line `width − x − ellipsis` wide and full lines after, fit the N−h lines left. Binary search over `j`.
+- **End:** walk the first N−1 lines with `layoutNextLineRange`, which builds no strings, then run the core's end cut on the rest of the text from line N's start. Kept text rendered in a wrapping block re-wraps to the same first N−1 lines, or fewer when the cut shortens line N's first word enough to fit on the line before.
+- **Start and middle:** the head keeps the lines before the one at `ratio × N` and, on that line, an end cut of what's left of `ratio × N × width` (nothing, for a start cut). The tail's candidate starts are word starts after the head, or grapheme starts without word preference or when no word start fits. pretext's line streams accept any cursor, including one partway through a word, and a width per line, so each candidate is a probe of the lines left, the first beside the head and the ellipsis, laid out from that cursor over the prepared handle: no new `prepare`, pure arithmetic. A binary search finds the first candidate that fits.
 
-Start and middle cuts join two ranges the model laid out apart, and at the junction the browser may wrap differently: a tail that begins mid-word can't break where a line start could. So both confirm the final string with one real `prepareWithSegments` and `layout`, mostly cache hits in pretext's segment cache, and step back while it runs to N+1 lines.
+The model lays head and tail out apart, and the joined line can wrap differently: a tail that begins mid-word can't break where a line start could, and an ellipsis can end the line before. So start and middle cuts settle on a real `prepareWithSegments` and `layout` of the joined string, mostly cache hits in pretext's segment cache: later while it runs over, then earlier while the start before still fits. A tail never starts at the head's end, since a cut that removes nothing isn't a cut.
 
 ## DOM helpers (`pretrunc/dom`)
 
@@ -115,12 +114,14 @@ Shared by every adapter, so the React adapter later is thin.
 ```tsx
 <Truncate text={name()} at="middle" /> // observes width and font
 <Truncate text={title()} at="end" width={column()} font={BODY_FONT} /> // no observer, no style reads
-const c = createCut(() => prepared(), () => width(), { at: "middle" }) // Accessor<Cut>
+const handle = createCut({ text: name(), at: "middle" }) // ref, prepared and cut accessors
+<Clamp text={body()} lines={3} expanded={open()} after={<button>{open() ? "less" : "more"}</button>} />
 ```
 
 - `render="kept"` (default) paints the kept text and ellipsis, with the full text in `title`.
 - `render="full"` paints all the text: the cut range sits in a `font-size: 0` span and the ellipsis in an `aria-hidden`, unselectable span, so copy, find-in-page and screen readers get the full text. The cut measures the ellipsis as a run of its own, since no kerning crosses into its element. Browser tests check in Chromium, Firefox and WebKit that it lays out within its box and that selecting it copies every character.
-- Multi-line components live in `pretrunc/solid/lines`, so a single-line page never loads pretext.
+- `<Clamp>` lives in `pretrunc/solid/lines`, so a single-line page never loads pretext. Its `after` element, such as a "more" button, shows whenever the text is cut or expanded; Clamp observes its width and keeps that room free on the last line. Expanded, it shows every line, and `after` wraps to a line of its own when it doesn't fit.
+- `createBox` is the part both share: the width and font given, or an element's, observed.
 
 ## Not in v1
 
@@ -128,10 +129,13 @@ Each has an `idea` issue: the font metrics table for SSR, workers and cutting be
 
 ## Proof
 
-- **Properties** (fast-check), run in real browsers, each checked against the browser's own layout of the result: never overflows (a `nowrap` span of the kept text is no wider than `width`); tight (with `words` and `trim` off, keeping one more grapheme overflows); monotone (a wider box never keeps less); identity (text that fits comes back whole); no grapheme is split; protected spans stay whole or go whole; the packed number round-trips.
-- **Browsers:** Chromium, Firefox and WebKit through vitest's Playwright provider. The app's browser project runs Chromium only; the package adds the other two.
+- **Properties** with effect's `Arbitrary` through `@effect/vitest`. In Node, against a fake font with known kerning and shaping, and pretext behind a fake `OffscreenCanvas`: never overflows; tight (with `words` and `trim` off, one more grapheme on a cut side overflows, where widths add up); monotone; identity; no grapheme split; protected matches whole or gone; clamps never take more lines than asked, fill the last line, and start the tail as early as fits. In Chromium, Firefox and WebKit, against each engine's own layout: single-line cuts never lay out wider than the width, Latin text keeps all but at most one grapheme of the widest fit, trusted text re-cuts without `measureText`, and clamps never wrap to more lines than asked.
+- **Adapters:** one browser test per behaviour a person sees: resizing, the title, copying a full render, re-cutting after a web font loads, and a clamp keeping room for its button and expanding.
+- **Mutants:** each test was checked by breaking the code it guards and watching it go red.
+- **Size:** a test bundles each entry with Vite and rolldown, minified, compresses it with brotli and fails over budget.
 - **Benchmarks:** against `pretext-truncate`'s `findTruncationPoint` and the pretext demo's `clampLines` and `layoutMiddle`, on the same inputs: a cold cut including `prepare`, a warm re-cut at a new width, and one resize frame over 5,000 rows.
-- **Size:** a test bundles each entry with `vp pack`, compresses it with brotli and fails over budget.
+
+pretrunc's tests run apart from the app's: `vp run test:pretrunc` from the repo root.
 
 ## Build order
 

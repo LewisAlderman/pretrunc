@@ -30,13 +30,22 @@ export interface CutHandle {
   readonly cut: Accessor<Cut | undefined>;
 }
 
+export interface Box {
+  /** Give it the element whose width and font the text follows. */
+  readonly ref: (element: Element) => void;
+  /** The width given, or the element's content width; undefined until observed. */
+  readonly width: Accessor<number | undefined>;
+  /** The font given, or the element's; undefined until it mounts. */
+  readonly font: Accessor<string | undefined>;
+  /** Changes whenever web fonts load: read it where text is prepared. */
+  readonly fonts: Accessor<number>;
+}
+
 /**
- * The cut of `props.text` for an element's width and font, or for the ones given.
+ * The width and font text is cut to: the ones given, or an element's, observed.
  * Whether to observe the width and read the font is decided once, when it settles.
- * `apart` measures the ellipsis as a run of its own, for renderings that paint it in
- * an element of its own, so no kerning across it is counted.
  */
-export const createCut = (props: CutProps, apart = false): CutHandle => {
+export const createBox = (props: { readonly width?: number; readonly font?: string }): Box => {
   let element: Element | undefined;
   const [observed, setObserved] = createSignal<number>();
   const [computed, setComputed] = createSignal<string>();
@@ -51,16 +60,31 @@ export const createCut = (props: CutProps, apart = false): CutHandle => {
       for (const stop of stops) stop();
     };
   });
-  const font = () => props.font ?? computed();
+  return {
+    ref: (e) => (element = e),
+    width: () => props.width ?? observed(),
+    font: () => props.font ?? computed(),
+    fonts,
+  };
+};
+
+/**
+ * The cut of `props.text` for an element's width and font, or for the ones given.
+ * `apart` measures the ellipsis as a run of its own, for renderings that paint it in
+ * an element of its own, so no kerning across it is counted.
+ */
+export const createCut = (props: CutProps, apart = false): CutHandle => {
+  const box = createBox(props);
+  const font = box.font;
   const prepared = createMemo(() => {
-    fonts();
+    box.fonts();
     const f = font();
     if (f === undefined) return undefined;
     return prepare(props.text, f, props.protect ? { protect: props.protect } : {});
   });
   const result = createMemo(() => {
     const p = prepared();
-    const width = props.width ?? observed();
+    const width = box.width();
     const f = font();
     if (p === undefined || width === undefined || f === undefined) return undefined;
     const ellipsis = props.ellipsis ?? "…";
@@ -68,7 +92,7 @@ export const createCut = (props: CutProps, apart = false): CutHandle => {
       ? cut(p, width, { ...props, ellipsis: fontFace(f).m(ellipsis) })
       : cut(p, width, props);
   });
-  return { ref: (e) => (element = e), prepared, cut: result };
+  return { ref: box.ref, prepared, cut: result };
 };
 
 export interface TruncateProps extends CutProps {

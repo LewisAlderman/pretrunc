@@ -9,13 +9,19 @@
   "exports": {
     ".": "./src/index.ts",
     "./dom": "./src/dom.ts",
-    "./solid": "./src/solid.tsx"
+    "./lines": "./src/lines.ts",
+    "./solid": "./src/solid.tsx",
+    "./solid/lines": "./src/solid-lines.tsx"
   },
   "peerDependencies": {
+    "@chenglou/pretext": "1.0.0",
     "@solidjs/web": "2.0.0-rc.15",
     "solid-js": "2.0.0-rc.15"
   },
   "peerDependenciesMeta": {
+    "@chenglou/pretext": {
+      "optional": true
+    },
     "@solidjs/web": {
       "optional": true
     },

@@ -61,6 +61,8 @@ const SLACK = 1 / 64;
 
 let segmenter: Intl.Segmenter | undefined;
 
+/** A cut from its two offsets; for pretrunc's own entries, not re-exported. */
+export const pack = (head: number, tail: number): Cut => (head * SHIFT + tail) as Cut;
 export const head = (c: Cut): number => Math.floor(c / SHIFT);
 export const tail = (c: Cut): number => c % SHIFT;
 export const truncated = (c: Cut): boolean => head(c) < tail(c);
