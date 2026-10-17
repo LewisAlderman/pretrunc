@@ -1,0 +1,47 @@
+/** Measures text in one font. Canvas by default; a metrics table can stand in (#54). */
+export interface Face {
+  /** The width of a string in px, as one run of text. */
+  readonly m: (text: string) => number;
+  /** Widths already measured, by text: graphemes, grapheme pairs and ellipses. */
+  readonly c: Map<string, number>;
+}
+
+/** A face over your own measure function: a metrics table, node-canvas, a test double. */
+export const face = (measure: (text: string) => number): Face => ({ m: measure, c: new Map() });
+
+let context: OffscreenCanvasRenderingContext2D | undefined;
+// Setting `font` parses it every time, and reading it back gives a normalised string
+// that differs from what was set, so the last font set is kept here instead.
+let current = "";
+const faces = new Map<string, Face>();
+
+/** The canvas face for a CSS font shorthand, shared by everything in that font. */
+export const fontFace = (font: string): Face => {
+  let f = faces.get(font);
+  if (!f) {
+    f = face((text) => {
+      context ??= new OffscreenCanvas(0, 0).getContext("2d")!;
+      if (current !== font) context.font = current = font;
+      return context.measureText(text).width;
+    });
+    faces.set(font, f);
+  }
+  return f;
+};
+
+/**
+ * Drops the canvas face for `font`, or every one, so text prepared afterwards is
+ * measured again. Call it once a web font loads: widths measured before are the
+ * fallback font's.
+ */
+export const forget = (font?: string): void => {
+  if (font === undefined) faces.clear();
+  else faces.delete(font);
+};
+
+/** The width of `text` in `f`, measured once. */
+export const widthOf = (f: Face, text: string): number => {
+  let w = f.c.get(text);
+  if (w === undefined) f.c.set(text, (w = f.m(text)));
+  return w;
+};

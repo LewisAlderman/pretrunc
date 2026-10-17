@@ -1,0 +1,12 @@
+{
+  "name": "pretrunc",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Cut text at its start, middle or end to fit a width, with pretext for multi-line",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}
