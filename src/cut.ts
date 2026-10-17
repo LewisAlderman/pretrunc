@@ -10,11 +10,16 @@ interface Internal extends Prepared {
   readonly f: Face;
   /** Each grapheme's start offset, then the text's length. */
   readonly b: number[];
-  /** `w[i]`: the width of the first `i` graphemes, kerning between them included. */
+  /**
+   * `w[i]`: the width of the first `i` graphemes, kerning between them included,
+   * except kerning that narrows across a possible line break.
+   */
   readonly w: Float64Array;
+  /** `d[i]`: the narrowing kerning `w` leaves out of the first `i` graphemes. */
+  readonly d: Float64Array;
   /** `a[i]`: grapheme `i`'s width alone. */
   readonly a: Float64Array;
-  /** Whether `w` matches canvas for the whole text, so cuts can trust it without measuring. */
+  /** Whether `w - d` matches canvas for the whole text, so cuts can trust `w` without measuring. */
   readonly x: boolean;
   /** The whole text's measured width. */
   readonly y: number;
@@ -62,6 +67,15 @@ export const truncated = (c: Cut): boolean => head(c) < tail(c);
 export const toText = (p: Prepared, c: Cut, ellipsis = "…"): string =>
   truncated(c) ? p.text.slice(0, head(c)) + ellipsis + p.text.slice(tail(c)) : p.text;
 
+// A word can end beside white space, a hyphen, a slash, an underscore, a full stop or an
+// ellipsis, an en or em dash. From U+2E80 up (CJK, emoji) every character is a word of its own.
+const breaks = /[\s\-/_.…–—⺀-￿]/;
+// WebKit lays out the text between two break opportunities as a run of its own, so
+// kerning across one, after a hyphen, a dash, CJK or an ellipsis, never reaches the
+// page there, while Chrome and Firefox keep it. Across a possible break, only kerning
+// that widens counts: never narrower than any engine lays it out.
+const across = (kerning: number, broken: boolean) => (broken ? Math.max(0, kerning) : kerning);
+
 export const prepare = (
   text: string,
   font: string | Face,
@@ -77,14 +91,18 @@ export const prepare = (
   b.push(t.length);
   const n = b.length - 1;
   const w = new Float64Array(n + 1);
+  const d = new Float64Array(n + 1);
   const a = new Float64Array(n);
   let previous = "";
   for (let i = 0; i < n; i++) {
     const g = t.slice(b[i], b[i + 1]);
-    // A grapheme adds its pair's width less its predecessor's: its own advance plus
-    // the kerning between them. Never less than 0, so a binary search stays valid.
+    // A grapheme adds its own advance plus the kerning from its pair. The step is never
+    // below 0, so a binary search stays valid.
     a[i] = widthOf(f, g);
-    w[i + 1] = w[i]! + Math.max(0, i ? widthOf(f, previous + g) - a[i - 1]! : a[i]!);
+    const kerning = i ? widthOf(f, previous + g) - a[i - 1]! - a[i]! : 0;
+    const counted = across(kerning, breaks.test(previous));
+    w[i + 1] = w[i]! + Math.max(0, a[i]! + counted);
+    d[i + 1] = d[i]! + counted - kerning;
     previous = g;
   }
   const y = n && f.m(t);
@@ -92,17 +110,14 @@ export const prepare = (
   let match = 0;
   if (options.protect)
     for (const m of t.matchAll(options.protect)) k.fill(++match, m.index, m.index + m[0].length);
-  const p: Internal = { text: t, f, b, w, a, x: Math.abs(y - w[n]!) < 0.01, y, k };
+  const p: Internal = { text: t, f, b, w, d, a, x: Math.abs(y - w[n]! + d[n]!) < 0.01, y, k };
   return p;
 };
 
-// A word can end beside white space, a hyphen, a slash, an underscore, a full stop or an
-// en or em dash. From U+2E80 up (CJK, emoji) every character is a word of its own.
-const breaks = /[\s\-/_.–—⺀-￿]/;
 const trims = /[\s,;:]/;
 
 export const cut = (prepared: Prepared, width: number, options: CutOptions = {}): Cut => {
-  const { text, f, b, w, a, x, y, k } = prepared as Internal;
+  const { text, f, b, w, d, a, x, y, k } = prepared as Internal;
   const { at = "end", ratio = 0.5, words = true, trim = true, ellipsis = "…" } = options;
   const n = b.length - 1;
   const pack = (h: number, t: number) => (b[h]! * SHIFT + b[t]!) as Cut;
@@ -139,17 +154,25 @@ export const cut = (prepared: Prepared, width: number, options: CutOptions = {})
     widthOf(f, left + right) - widthOf(f, left) - widthOf(f, right);
 
   // How wide a cut paints. When the model matched canvas over the whole text it is
-  // trusted, with the kerning on both sides of the ellipsis added; otherwise the cut is
-  // measured for real.
+  // trusted; otherwise the cut is measured for real, plus the kerning that a break
+  // opportunity drops in WebKit. Either way the kerning beside the ellipsis is added,
+  // and the one after it always crosses a break.
   const measure = (h: number, t: number) => {
+    let painted = w[h]! + ew + tailWidth(t);
     if (!x) {
       const before = text.slice(0, b[h]);
       const after = text.slice(b[t]);
-      return string ? f.m(before + ellipsis + after) : f.m(before) + ew + f.m(after);
+      painted = string ? f.m(before + ellipsis + after) : f.m(before) + ew + f.m(after);
+      painted += d[h]! + (t < n ? d[n]! - d[t + 1]! : 0);
     }
-    let painted = w[h]! + ew + tailWidth(t);
-    if (string && t < n) painted += kern(ellipsis, g(t));
-    if (string && h) painted += kern(g(h - 1), ellipsis);
+    if (string && h) {
+      const kerning = kern(g(h - 1), ellipsis);
+      painted += across(kerning, breaks.test(g(h - 1))) - (x ? 0 : kerning);
+    }
+    if (string && t < n) {
+      const kerning = kern(ellipsis, g(t));
+      painted += across(kerning, true) - (x ? 0 : kerning);
+    }
     return painted;
   };
 

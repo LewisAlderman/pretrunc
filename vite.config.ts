@@ -1,9 +1,11 @@
+import solid from "@solidjs/vite-plugin";
 import { defaultExclude, defineConfig } from "vite-plus";
 import { playwright } from "vite-plus/test/browser-playwright";
 
 // pretrunc tests apart from the app: `vp run test:pretrunc` from the repo root, or
 // `vp test` here.
 export default defineConfig({
+  plugins: [solid()],
   test: {
     projects: [
       {
@@ -19,7 +21,7 @@ export default defineConfig({
         // Cuts are checked against each engine's own text layout.
         test: {
           name: "pretrunc:browser",
-          include: ["**/*.browser.test.ts"],
+          include: ["**/*.browser.test.{ts,tsx}"],
           browser: {
             enabled: true,
             headless: true,

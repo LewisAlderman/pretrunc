@@ -7,6 +7,20 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./dom": "./src/dom.ts",
+    "./solid": "./src/solid.tsx"
+  },
+  "peerDependencies": {
+    "@solidjs/web": "2.0.0-rc.15",
+    "solid-js": "2.0.0-rc.15"
+  },
+  "peerDependenciesMeta": {
+    "@solidjs/web": {
+      "optional": true
+    },
+    "solid-js": {
+      "optional": true
+    }
   }
 }
