@@ -30,6 +30,22 @@ export default defineConfig({
           },
         },
       },
+      {
+        extends: true,
+        // Timings against the prior art, written to bench/results.<engine>.md. Run on
+        // purpose only (`vp run bench:pretrunc`): `test:pretrunc` names the other two.
+        test: {
+          name: "pretrunc:bench",
+          include: ["bench/**/*.bench.ts"],
+          testTimeout: 300_000,
+          browser: {
+            enabled: true,
+            headless: true,
+            provider: playwright(),
+            instances: [{ browser: "chromium" }, { browser: "firefox" }, { browser: "webkit" }],
+          },
+        },
+      },
     ],
   },
 });

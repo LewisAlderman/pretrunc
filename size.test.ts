@@ -8,8 +8,9 @@ import { build } from "vite-plus";
 // but the core counts only its own bytes: pretrunc's other modules, Solid and pretext
 // are left out.
 const budgets = {
-  // 1,024 was the first aim; every option the design picked costs 1.4 KB.
-  "src/index.ts": 1536,
+  // 1,024 was the first aim; every option the design picked cost 1.4 KB, and the speed
+  // work against the benchmark (bench/) took it to 1.8 KB.
+  "src/index.ts": 2048,
   "src/dom.ts": 400,
   // 600 was a guess before it was built; both renderings and width tracking cost 880.
   "src/solid.tsx": 1024,

@@ -6,7 +6,16 @@ import {
   type PreparedTextWithSegments,
   walkLineRanges,
 } from "@chenglou/pretext";
-import { cut, type Cut, type CutOptions, head, pack, prepare } from "./cut.ts";
+import {
+  type Cut,
+  type CutOptions,
+  cutFrom,
+  graphemeAt,
+  head,
+  pack,
+  prepare,
+  type Prepared,
+} from "./cut.ts";
 import { fontFace } from "./face.ts";
 
 /** Text prepared for laying out in lines with pretext. */
@@ -27,6 +36,8 @@ interface Internal extends Lines {
   /** Each segment's start offset, then the text's length. */
   readonly s: number[];
   readonly o: LinesOptions;
+  /** The core's preparation of the same text, made on the first cut that needs it. */
+  c: Prepared | undefined;
 }
 
 const START: LayoutCursor = { segmentIndex: 0, graphemeIndex: 0 };
@@ -42,7 +53,7 @@ export const prepareLines = (text: string, font: string, options: LinesOptions =
   let joined = "";
   const s = [0];
   for (const segment of l.segments) s.push((joined += segment).length);
-  const p: Internal = { text: joined, l, font, s, o: options };
+  const p: Internal = { text: joined, l, font, s, o: options, c: undefined };
   return p;
 };
 
@@ -63,7 +74,8 @@ export const clamp = (
   count: number,
   options: CutOptions = {},
 ): Cut => {
-  const { text, l, font, s, o } = lines as Internal;
+  const p = lines as Internal;
+  const { text, l, font, s, o } = p;
   const { at = "end", ratio = 0.5, words = true, trim = true, ellipsis = "…" } = options;
   const n = Math.max(1, count);
   const length = text.length;
@@ -99,10 +111,14 @@ export const clamp = (
     for (let i = 0; i < index; i++) c = layoutNextLineRange(l, width, c)!.end;
     return offset(c);
   };
-  // The core's end cut of the text from `from`, as one line in `room` px.
-  const endCut = (from: number, room: number, e: string | number) =>
-    from +
-    head(cut(prepare(text.slice(from), font, o), room, { ...options, at: "end", ellipsis: e }));
+  // The core's end cut of the text from `from`, as one line in `room` px. One core
+  // preparation of the whole text serves every line and every width.
+  const endCut = (from: number, room: number, e: string | number) => {
+    const core = (p.c ??= prepare(text, font, o));
+    return head(
+      cutFrom(core, graphemeAt(core, from), room, { ...options, at: "end", ellipsis: e }),
+    );
+  };
 
   if (at === "end") return pack(endCut(lineStart(n - 1), width, ellipsis), length);
 

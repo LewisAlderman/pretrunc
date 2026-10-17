@@ -2,12 +2,21 @@
 export interface Face {
   /** The width of a string in px, as one run of text. */
   readonly m: (text: string) => number;
-  /** Widths already measured, by text: graphemes, grapheme pairs and ellipses. */
+  /** Widths already measured, by text: graphemes, grapheme pairs, words and ellipses. */
   readonly c: Map<string, number>;
+  /** Widths of single characters below U+0300 by code, NaN until measured. */
+  readonly u: Float64Array;
+  /** Widths of pairs of characters below U+0300, by `first * 768 + second`. */
+  readonly p: Map<number, number>;
 }
 
 /** A face over your own measure function: a metrics table, node-canvas, a test double. */
-export const face = (measure: (text: string) => number): Face => ({ m: measure, c: new Map() });
+export const face = (measure: (text: string) => number): Face => ({
+  m: measure,
+  c: new Map(),
+  u: new Float64Array(768).fill(Number.NaN),
+  p: new Map(),
+});
 
 let context: OffscreenCanvasRenderingContext2D | undefined;
 // Setting `font` parses it every time, and reading it back gives a normalised string
@@ -43,5 +52,20 @@ export const forget = (font?: string): void => {
 export const widthOf = (f: Face, text: string): number => {
   let w = f.c.get(text);
   if (w === undefined) f.c.set(text, (w = f.m(text)));
+  return w;
+};
+
+// Most text is in characters below U+0300, one UTF-16 unit each, so their widths are
+// found by code: no string is built unless one has to be measured.
+export const unitOf = (f: Face, code: number): number => {
+  let w = f.u[code]!;
+  // NaN, not yet measured.
+  if (w !== w) f.u[code] = w = f.m(String.fromCharCode(code));
+  return w;
+};
+export const pairOf = (f: Face, first: number, second: number): number => {
+  const key = first * 768 + second;
+  let w = f.p.get(key);
+  if (w === undefined) f.p.set(key, (w = f.m(String.fromCharCode(first, second))));
   return w;
 };

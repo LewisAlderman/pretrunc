@@ -220,6 +220,13 @@ describe("cut examples", () => {
     assert.isTrue(toText(id, cut(id, 80, { at: "middle", tail: 4 })).endsWith("…1234"));
   });
 
+  it("counts the kerning beside the ellipsis", () => {
+    // "ooo…" is 32.25 px with "o…" kerned 0.75 px tighter, so it fits 32.5 px, though
+    // three o's and an unkerned ellipsis wouldn't.
+    const os = p("oooooo");
+    assert.strictEqual(toText(os, cut(os, 32.5, { words: false })), "ooo…");
+  });
+
   it("leaves room for an element by its width", () => {
     const words = p("aaaaaaaaaa");
     assert.strictEqual(toText(words, cut(words, 50, { ellipsis: 20 }), ""), "aaaa");
