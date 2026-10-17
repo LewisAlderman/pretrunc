@@ -16,13 +16,20 @@ const kerning: Record<string, number> = {
   "f…": 0.5,
 };
 const advance = (c: string) => advances[c] ?? (c >= "A" && c <= "Z" ? 10 : c >= "̀" ? 9 : 7);
-const metrics = (shaped: boolean) => (s: string) => {
-  let w = 0;
-  for (let i = 0; i < s.length; i++)
-    w += advance(s[i]!) + (i ? (kerning[s.slice(i - 1, i + 1)] ?? 0) : 0);
-  if (shaped) w += -3 * s.split("ffi").length + 3 + 2.5 * s.split("AVA").length - 2.5;
-  return w;
-};
+// Which kerning a layout applies: all of it, none (WebKit under letter spacing), or
+// only the kerning that widens, the envelope of the two.
+type Kerned = "all" | "none" | "widening";
+const metrics =
+  (shaped: boolean, kerned: Kerned = "all") =>
+  (s: string) => {
+    let w = 0;
+    for (let i = 0; i < s.length; i++) {
+      const k = i ? (kerning[s.slice(i - 1, i + 1)] ?? 0) : 0;
+      w += advance(s[i]!) + (kerned === "all" ? k : kerned === "widening" ? Math.max(0, k) : 0);
+    }
+    if (shaped) w += -3 * s.split("ffi").length + 3 + 2.5 * s.split("AVA").length - 2.5;
+    return w;
+  };
 const plain = face(metrics(false));
 const shaped = face(metrics(true));
 
@@ -73,21 +80,31 @@ const runs = { arbitrary: { runs: 500 } };
 const at = Arbitrary.schema(Schema.Literals(["start", "middle", "end"]));
 const ratio = Arbitrary.schema(Schema.Literals([0, 0.3, 0.5, 1]));
 const flag = Arbitrary.schema(Schema.Boolean);
+// CSS letter spacing after every UTF-16 unit, the last included: never less than any
+// engine paints. Under it Chrome still kerns and WebKit doesn't, so a cut paints as
+// the wider of the two, and is as tight as it can be against the widening envelope.
+const spacing = Arbitrary.schema(Schema.Literals([0, 0.5, 2]));
+const spaced = (text: string, shapedFont: boolean, by: number) =>
+  by
+    ? Math.max(metrics(shapedFont)(text), metrics(shapedFont, "none")(text)) + by * text.length
+    : metrics(shapedFont)(text);
+const envelope = (text: string, by: number) =>
+  metrics(false, by ? "widening" : "all")(text) + by * text.length;
 
-const painted = (p: Prepared, c: ReturnType<typeof cut>, shapedFont: boolean) =>
-  metrics(shapedFont)(toText(p, c));
+const painted = (p: Prepared, c: ReturnType<typeof cut>, shapedFont: boolean, by = 0) =>
+  spaced(toText(p, c), shapedFont, by);
 const nothingKept = (p: Prepared, c: ReturnType<typeof cut>) =>
   head(c) === 0 && tail(c) === p.text.length;
 
 describe("cut", () => {
   it.prop(
     "never paints wider than the width, whatever the options and font",
-    [text, share, at, ratio, flag, flag, flag],
-    ([s, q, where, split, words, trim, isShaped]) => {
-      const p = prepare(s, isShaped ? shaped : plain);
+    [text, share, at, ratio, flag, flag, flag, spacing],
+    ([s, q, where, split, words, trim, isShaped, by]) => {
+      const p = prepare(s, isShaped ? shaped : plain, { letterSpacing: by });
       const width = widthFor(p, q);
       const c = cut(p, width, { at: where, ratio: split, words, trim });
-      assert.isTrue(painted(p, c, isShaped) <= width || nothingKept(p, c));
+      assert.isTrue(painted(p, c, isShaped, by) <= width || nothingKept(p, c));
     },
     runs,
   );
@@ -108,9 +125,9 @@ describe("cut", () => {
   // no search over a width that isn't monotone can promise the tightest cut.
   it.prop(
     "keeps as much as fits: one more grapheme on a cut side overflows",
-    [text, share, at, ratio],
-    ([s, q, where, split]) => {
-      const p = prepare(s, plain);
+    [text, share, at, ratio, spacing],
+    ([s, q, where, split, by]) => {
+      const p = prepare(s, plain, { letterSpacing: by });
       const width = widthFor(p, q);
       const c = cut(p, width, { at: where, ratio: split, words: false, trim: false });
       if (!truncated(c)) return;
@@ -119,7 +136,7 @@ describe("cut", () => {
       const t = b.indexOf(tail(c));
       const fits = (hh: number, tt: number) =>
         hh <= tt &&
-        metrics(false)(p.text.slice(0, b[hh]) + "…" + p.text.slice(b[tt])) <= width - 1 / 64;
+        envelope(p.text.slice(0, b[hh]) + "…" + p.text.slice(b[tt]), by) <= width - 1 / 64;
       const input = JSON.stringify([p.text, width, where, split, toText(p, c)]);
       if (where !== "start") assert.isFalse(fits(h + 1, t), input);
       if (where !== "end") assert.isFalse(t > 0 && fits(h, t - 1), input);

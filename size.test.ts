@@ -8,13 +8,17 @@ import { build } from "vite-plus";
 // but the core counts only its own bytes: pretrunc's other modules, Solid and pretext
 // are left out.
 const budgets = {
-  // 1,024 was the first aim; every option the design picked cost 1.4 KB, and the speed
-  // work against the benchmark (bench/) took it to 1.8 KB.
-  "src/index.ts": 2048,
+  // 1,024 was the first aim; every option the design picked cost 1.4 KB, the speed work
+  // against the benchmark (bench/) 1.8 KB, and letter spacing, tabs and cutting from a
+  // range of a longer text 2.1 KB.
+  "src/index.ts": 2240,
   "src/dom.ts": 400,
-  // 600 was a guess before it was built; both renderings and width tracking cost 880.
+  // 600 was a guess before it was built; both renderings, width tracking and letter
+  // spacing cost 980.
   "src/solid.tsx": 1024,
-  "src/lines.ts": 1024,
+  // 1,024 held until pre-wrap, letter spacing and boxes for a width-only ellipsis and
+  // the room after the text: 1.5 KB.
+  "src/lines.ts": 1536,
   "src/solid-lines.tsx": 1024,
 };
 const packages = /^(solid-js|@solidjs\/|@chenglou\/)/;

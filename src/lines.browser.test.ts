@@ -1,7 +1,7 @@
 import inter from "@fontsource-variable/inter/files/inter-latin-wght-normal.woff2?url";
 import { assert, beforeAll, describe, it } from "@effect/vitest";
 import { Arbitrary, Array, Schema } from "effect";
-import { toText } from "./cut.ts";
+import { head, tail, toText, truncated } from "./cut.ts";
 import { clamp, prepareLines } from "./lines.ts";
 
 const FONT = '15px "Inter Lines"';
@@ -68,4 +68,84 @@ describe("clamp in a real engine", () => {
     },
     { arbitrary: { runs: 200 } },
   );
+
+  const gap = Arbitrary.schema(Schema.Literals([" ", " ", " ", "  ", "\n", "\t"]));
+  const spaced = Arbitrary.map(
+    Arbitrary.array(Arbitrary.all([word, gap]), { maxLength: 30 }),
+    (pairs) =>
+      Array.join(
+        Array.map(pairs, ([w, g]) => w + g),
+        "",
+      ),
+  );
+  // An inline-block of `width` px, as an element the caller renders would be.
+  const box = (width: number) => {
+    const element = document.createElement("span");
+    element.style.cssText = `display: inline-block; width: ${width}px; height: 1px`;
+    return element;
+  };
+  // How many lines the engine wraps a clamp's result to, boxes and all.
+  const wrapsTo = (
+    s: string,
+    width: number,
+    n: number,
+    at: "start" | "middle" | "end",
+    words: boolean,
+    whiteSpace: "normal" | "pre-wrap",
+    spacing: number,
+    e: string | number,
+    after: number,
+  ) => {
+    const p = prepareLines(s, FONT, { whiteSpace, letterSpacing: spacing });
+    const c = clamp(p, width, n, { at, words, ellipsis: e, after });
+    block.style.width = `${width}px`;
+    block.style.whiteSpace = whiteSpace;
+    block.style.letterSpacing = `${spacing}px`;
+    // Rendered as the components render it: a text ellipsis in one string with the
+    // text, since WebKit lays separate text nodes out as separate runs; a width-only
+    // ellipsis and the room after as elements. A clamp that cuts nothing shows no
+    // "more", so nothing comes after it.
+    if (truncated(c)) {
+      const before = p.text.slice(0, head(c));
+      const rest = p.text.slice(tail(c));
+      block.replaceChildren(
+        ...(typeof e === "string" ? [before + e + rest] : [before, box(e), rest]),
+        ...(after ? [box(after)] : []),
+      );
+    } else block.replaceChildren(p.text);
+    const lines = Math.round(block.getBoundingClientRect().height / LINE);
+    block.style.whiteSpace = "";
+    block.style.letterSpacing = "";
+    return lines;
+  };
+
+  const webkit = !/Chrome\/|Firefox\//.test(navigator.userAgent);
+
+  it.prop(
+    "never wraps to more lines than asked, with pre-wrap, letter spacing and boxes",
+    [
+      spaced,
+      between(60, 400),
+      between(1, 4),
+      at,
+      flag,
+      Arbitrary.schema(Schema.Literals(["normal", "pre-wrap"])),
+      Arbitrary.schema(Schema.Literals([0, 1])),
+      Arbitrary.schema(Schema.Literals(["…", 15])),
+      Arbitrary.schema(Schema.Literals([0, 30])),
+    ],
+    (input) => {
+      // WebKit's tabs in pre-wrap can still run a line over (#76), pinned below.
+      if (webkit && input[5] === "pre-wrap" && input[0].includes("\t")) return;
+      assert.isAtMost(wrapsTo(...input), input[2], JSON.stringify(input));
+    },
+    { arbitrary: { runs: 300 } },
+  );
+
+  (webkit ? it.fails : it)("keeps tabbed pre-wrap text to its lines in WebKit too (#76)", () => {
+    const beside = "中文\t~/Projects/atlas/src  poker\t~/Projects/atlas/src  ";
+    const arabic = "مرحبا\t,\tمرحبا\nnaïve ";
+    assert.isAtMost(wrapsTo(beside, 143, 3, "middle", false, "pre-wrap", 0, "…", 30), 3);
+    assert.isAtMost(wrapsTo(arabic, 97, 2, "start", false, "pre-wrap", 0, 15, 0), 2);
+  });
 });

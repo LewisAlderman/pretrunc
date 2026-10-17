@@ -2,7 +2,6 @@ import type { JSX } from "@solidjs/web";
 import { createMemo, createSignal, onSettled, Show } from "solid-js";
 import { type CutOptions, head, tail, truncated } from "./cut.ts";
 import { observe } from "./dom.ts";
-import { fontFace } from "./face.ts";
 import { clamp, prepareLines } from "./lines.ts";
 import { createBox } from "./solid.tsx";
 
@@ -22,7 +21,10 @@ export interface ClampProps extends Omit<CutOptions, "tail" | "keep"> {
   readonly width?: number;
   /** A CSS font shorthand. Left out, it is read from the element's computed style. */
   readonly font?: string;
+  /** CSS `letter-spacing` in px. Left out, it is read from the element's computed style. */
+  readonly letterSpacing?: number;
   readonly protect?: RegExp;
+  readonly whiteSpace?: "normal" | "pre-wrap";
   readonly wordBreak?: "normal" | "keep-all";
   readonly class?: string;
 }
@@ -44,7 +46,9 @@ export function Clamp(props: ClampProps): JSX.Element {
     if (font === undefined) return undefined;
     return prepareLines(props.text, font, {
       ...(props.protect ? { protect: props.protect } : {}),
+      ...(props.whiteSpace ? { whiteSpace: props.whiteSpace } : {}),
       ...(props.wordBreak ? { wordBreak: props.wordBreak } : {}),
+      letterSpacing: box.spacing(),
     });
   });
   const cut = createMemo(() => {
@@ -52,13 +56,11 @@ export function Clamp(props: ClampProps): JSX.Element {
     const width = box.width();
     const font = box.font();
     if (p === undefined || width === undefined || font === undefined) return undefined;
-    const ellipsis = props.ellipsis ?? "…";
-    return props.after === undefined
-      ? clamp(p, width, props.lines, props)
-      : clamp(p, width, props.lines, {
-          ...props,
-          ellipsis: fontFace(font).m(ellipsis) + afterWidth(),
-        });
+    // `after` is an element here and a width to `clamp`, so it's always given as one.
+    return clamp(p, width, props.lines, {
+      ...props,
+      after: props.after === undefined ? 0 : afterWidth(),
+    });
   });
   const cutNow = () => {
     const c = cut();
@@ -71,7 +73,11 @@ export function Clamp(props: ClampProps): JSX.Element {
     return p.text.slice(0, head(c)) + (props.ellipsis ?? "…") + p.text.slice(tail(c));
   };
   return (
-    <div ref={box.ref} class={props.class} style={{ "overflow-wrap": "break-word" }}>
+    <div
+      ref={box.ref}
+      class={props.class}
+      style={{ "overflow-wrap": "break-word", "white-space": props.whiteSpace ?? "normal" }}
+    >
       {text()}
       <Show when={props.after !== undefined && (props.expanded || cutNow())}>
         <span ref={watch} style={{ display: "inline-block" }}>

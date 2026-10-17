@@ -30,7 +30,8 @@ beforeAll(() => {
 });
 
 // The width the engine lays the text out at, which is what has to fit.
-const paints = (text: string) => {
+const paints = (text: string, spacing = 0) => {
+  span.style.letterSpacing = `${spacing}px`;
   span.textContent = text;
   return span.getBoundingClientRect().width;
 };
@@ -91,13 +92,22 @@ const kept = (p: Prepared, c: Cut) => head(c) + p.text.length - tail(c);
 describe("cut in a real engine", () => {
   it.prop(
     "never lays out wider than the width",
-    [textOf(world), share, at, flag, flag, ellipsis],
-    ([s, q, where, words, trim, e]) => {
-      const p = prepare(s, FONT);
+    [
+      textOf(world),
+      share,
+      at,
+      flag,
+      flag,
+      ellipsis,
+      Arbitrary.schema(Schema.Literals([0, 0, 0.5, 2])),
+    ],
+    ([s, q, where, words, trim, e, spacing]) => {
+      const p = prepare(s, FONT, { letterSpacing: spacing });
       const width = widthFor(p, q);
       const c = cut(p, width, { at: where, words, trim, ellipsis: e });
       if (!truncated(c) || kept(p, c) > 0) {
-        assert.isAtMost(paints(toText(p, c, e)), width, JSON.stringify([p.text, width, where, e]));
+        const input = JSON.stringify([p.text, width, where, e, spacing]);
+        assert.isAtMost(paints(toText(p, c, e), spacing), width, input);
       }
     },
     runs,

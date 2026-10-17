@@ -30,6 +30,10 @@ export const fontOf = (element: Element): string => {
   return `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
 };
 
+/** An element's computed `letter-spacing` in px; "normal" is 0. */
+export const spacingOf = (element: Element): number =>
+  parseFloat(getComputedStyle(element).letterSpacing) || 0;
+
 const loaded = new Set<() => void>();
 
 /**

@@ -10,7 +10,7 @@ import {
   tail,
   truncated,
 } from "./cut.ts";
-import { fontOf, observe, onFonts } from "./dom.ts";
+import { fontOf, observe, onFonts, spacingOf } from "./dom.ts";
 import { fontFace } from "./face.ts";
 
 export interface CutProps extends CutOptions {
@@ -19,6 +19,8 @@ export interface CutProps extends CutOptions {
   readonly width?: number;
   /** A CSS font shorthand. Left out, it is read from the element's computed style. */
   readonly font?: string;
+  /** CSS `letter-spacing` in px. Left out, it is read from the element's computed style. */
+  readonly letterSpacing?: number;
   readonly protect?: RegExp;
 }
 
@@ -37,6 +39,8 @@ export interface Box {
   readonly width: Accessor<number | undefined>;
   /** The font given, or the element's; undefined until it mounts. */
   readonly font: Accessor<string | undefined>;
+  /** The letter spacing given, or the element's, in px. */
+  readonly spacing: Accessor<number>;
   /** Changes whenever web fonts load: read it where text is prepared. */
   readonly fonts: Accessor<number>;
 }
@@ -45,14 +49,22 @@ export interface Box {
  * The width and font text is cut to: the ones given, or an element's, observed.
  * Whether to observe the width and read the font is decided once, when it settles.
  */
-export const createBox = (props: { readonly width?: number; readonly font?: string }): Box => {
+export const createBox = (props: {
+  readonly width?: number;
+  readonly font?: string;
+  readonly letterSpacing?: number;
+}): Box => {
   let element: Element | undefined;
   const [observed, setObserved] = createSignal<number>();
   const [computed, setComputed] = createSignal<string>();
+  const [spaced, setSpaced] = createSignal(0);
   const [fonts, setFonts] = createSignal(0);
   onSettled(() => {
     const stops = [onFonts(() => setFonts((n) => n + 1))];
     if (element && untrack(() => props.font) === undefined) setComputed(fontOf(element));
+    if (element && untrack(() => props.letterSpacing) === undefined) {
+      setSpaced(spacingOf(element));
+    }
     if (element && untrack(() => props.width) === undefined) {
       stops.push(observe(element, setObserved));
     }
@@ -64,6 +76,7 @@ export const createBox = (props: { readonly width?: number; readonly font?: stri
     ref: (e) => (element = e),
     width: () => props.width ?? observed(),
     font: () => props.font ?? computed(),
+    spacing: () => props.letterSpacing ?? spaced(),
     fonts,
   };
 };
@@ -80,7 +93,10 @@ export const createCut = (props: CutProps, apart = false): CutHandle => {
     box.fonts();
     const f = font();
     if (f === undefined) return undefined;
-    return prepare(props.text, f, props.protect ? { protect: props.protect } : {});
+    return prepare(props.text, f, {
+      ...(props.protect ? { protect: props.protect } : {}),
+      letterSpacing: box.spacing(),
+    });
   });
   const result = createMemo(() => {
     const p = prepared();
@@ -89,7 +105,10 @@ export const createCut = (props: CutProps, apart = false): CutHandle => {
     if (p === undefined || width === undefined || f === undefined) return undefined;
     const ellipsis = props.ellipsis ?? "…";
     return apart && typeof ellipsis === "string"
-      ? cut(p, width, { ...props, ellipsis: fontFace(f).m(ellipsis) })
+      ? cut(p, width, {
+          ...props,
+          ellipsis: fontFace(f).m(ellipsis) + box.spacing() * ellipsis.length,
+        })
       : cut(p, width, props);
   });
   return { ref: box.ref, prepared, cut: result };

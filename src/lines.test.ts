@@ -1,4 +1,5 @@
 import { layout, prepareWithSegments } from "@chenglou/pretext";
+import { measureRichInlineStats, prepareRichInline } from "@chenglou/pretext/rich-inline";
 import { assert, describe, it } from "@effect/vitest";
 import { Arbitrary, Array, Schema } from "effect";
 import { head, tail, toText, truncated } from "./cut.ts";
@@ -103,6 +104,49 @@ describe("clamp", () => {
       const p = prepareLines(s, FONT);
       const c = clamp(p, width, n, { at: "middle" });
       assert.isAtMost(head(c), tail(c));
+    },
+    runs,
+  );
+});
+
+describe("clamp with every option", () => {
+  // Hard breaks, runs of spaces and tabs, for pre-wrap; normal collapses them.
+  const gap = Arbitrary.schema(Schema.Literals([" ", " ", " ", "  ", "\n", "\t"]));
+  const spaced = Arbitrary.map(
+    Arbitrary.array(Arbitrary.all([word, gap]), { maxLength: 30 }),
+    (pairs) =>
+      Array.join(
+        Array.map(pairs, ([w, g]) => w + g),
+        "",
+      ),
+  );
+  const whiteSpace = Arbitrary.schema(Schema.Literals(["normal", "pre-wrap"]));
+  const spacing = Arbitrary.schema(Schema.Literals([0, 1]));
+  const ellipsis = Arbitrary.schema(Schema.Literals(["…", 15]));
+  const after = Arbitrary.schema(Schema.Literals([0, 20]));
+
+  it.prop(
+    "never takes more lines than asked, the ellipsis and the room after laid out as boxes",
+    [spaced, between(40, 300), between(1, 5), at, flag, whiteSpace, spacing, ellipsis, after],
+    ([s, width, n, where, words, ws, by, e, room]) => {
+      const p = prepareLines(s, FONT, { whiteSpace: ws, letterSpacing: by });
+      const c = clamp(p, width, n, { at: where, words, ellipsis: e, after: room });
+      const item = (text: string) => ({ text, font: FONT, letterSpacing: by });
+      // A clamp that cuts nothing shows no "more", so nothing comes after it.
+      const items = truncated(c)
+        ? [
+            item(p.text.slice(0, head(c))),
+            typeof e === "string" ? item(e) : { width: e },
+            item(p.text.slice(tail(c))),
+            ...(room ? [{ width: room }] : []),
+          ]
+        : [item(p.text)];
+      const laid = prepareRichInline(
+        Array.filter(items, (i) => !("text" in i) || i.text !== ""),
+        { whiteSpace: ws },
+      );
+      const input = JSON.stringify([p.text, width, n, where, words, ws, by, e, room]);
+      assert.isAtMost(measureRichInlineStats(laid, width).lineCount, n, input);
     },
     runs,
   );

@@ -46,6 +46,19 @@ describe("Truncate", () => {
     assert.isNull(page.getByText(NAME).element().getAttribute("title"));
   });
 
+  it("cuts to the box's letter spacing", async () => {
+    render(() => (
+      <div style={{ "letter-spacing": "2px" }}>
+        <Box width={140}>
+          <Truncate text={NAME} words={false} />
+        </Box>
+      </div>
+    ));
+    const name = page.getByText(/…/);
+    await expect.element(name).toBeInTheDocument();
+    assert.isAtMost(laidOut(name.element()), 140);
+  });
+
   it("paints the whole text when asked, so copying it gives every character", async () => {
     render(() => (
       <Box width={140}>

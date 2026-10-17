@@ -8,6 +8,14 @@ export interface Face {
   readonly u: Float64Array;
   /** Widths of pairs of characters below U+0300, by `first * 768 + second`. */
   readonly p: Map<number, number>;
+  /** Widths of pairs of ASCII characters, by `first * 128 + second`, NaN until measured. */
+  readonly q: Float64Array;
+  /**
+   * Kerning beside each ellipsis, by ellipsis: `[code]` between a character below U+0300
+   * and the ellipsis after it, `[768 + code]` between the ellipsis and the character.
+   * Shared by every text in the face. NaN until measured.
+   */
+  readonly e: Map<string, Float64Array>;
 }
 
 /** A face over your own measure function: a metrics table, node-canvas, a test double. */
@@ -16,6 +24,8 @@ export const face = (measure: (text: string) => number): Face => ({
   c: new Map(),
   u: new Float64Array(768).fill(Number.NaN),
   p: new Map(),
+  q: new Float64Array(16384).fill(Number.NaN),
+  e: new Map(),
 });
 
 let context: OffscreenCanvasRenderingContext2D | undefined;
@@ -64,6 +74,13 @@ export const unitOf = (f: Face, code: number): number => {
   return w;
 };
 export const pairOf = (f: Face, first: number, second: number): number => {
+  // ASCII pairs, most of most text, come from a flat table, the rest from a map.
+  if (first < 128 && second < 128) {
+    const key = first * 128 + second;
+    let w = f.q[key]!;
+    if (w !== w) f.q[key] = w = f.m(String.fromCharCode(first, second));
+    return w;
+  }
   const key = first * 768 + second;
   let w = f.p.get(key);
   if (w === undefined) f.p.set(key, (w = f.m(String.fromCharCode(first, second))));
