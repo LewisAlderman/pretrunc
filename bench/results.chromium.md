@@ -6,28 +6,28 @@ Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like 
 
 | | cold ms | warm ms | overflows |
 | --- | ---: | ---: | ---: |
-| pretrunc `cut` | 16.0 | 0.7 | 0 |
-| pretext demo `clampLines` | 15.1 | 0.8 | 0 |
-| pretext-truncate `findTruncationPoint` | 17.7 | n/a | 16 |
+| pretrunc `cut` | 16.3 | 0.7 | 0 |
+| pretext demo `clampLines` | 15.3 | 0.8 | 0 |
+| pretext-truncate `findTruncationPoint` | 17.6 | n/a | 16 |
 
 ### 5,000 paths, middle of one line keeping the file name, 160 px
 
 | | cold ms | warm ms | overflows |
 | --- | ---: | ---: | ---: |
-| pretrunc `cut`, middle | 20.7 | 1.7 | 0 |
-| pretext demo `layoutMiddle` | 62.9 | 3.8 | 1 |
+| pretrunc `cut`, middle | 19.1 | 1.9 | 0 |
+| pretext demo `layoutMiddle` | 64.5 | 3.8 | 1 |
 
 ### 500 paragraphs, end of 3 lines, 260 px
 
 | | cold ms | warm ms | overflows |
 | --- | ---: | ---: | ---: |
-| pretrunc `clamp` | 9.0 | 0.5 | 0 |
-| pretext demo `clampLines` | 5.9 | 0.3 | 0 |
-| pretext-truncate `findTruncationPoint` | 8.3 | n/a | 18 |
+| pretrunc `clamp` | 9.2 | 0.5 | 0 |
+| pretext demo `clampLines` | 5.7 | 0.3 | 0 |
+| pretext-truncate `findTruncationPoint` | 7.8 | n/a | 18 |
 
 ### 500 paragraphs, start or middle of 3 lines, 260 px
 
 | | cold ms | warm ms | overflows |
 | --- | ---: | ---: | ---: |
-| pretrunc `clamp`, start | 17.8 | 10.4 | 0 |
-| pretrunc `clamp`, middle | 19.0 | 7.0 | 0 |
+| pretrunc `clamp`, start | 18.2 | 10.2 | 0 |
+| pretrunc `clamp`, middle | 18.5 | 7.8 | 0 |

@@ -30,8 +30,16 @@ interface Internal extends Prepared {
   readonly x: boolean;
   /** The whole text's measured width. */
   readonly y: number;
-  /** Per UTF-16 unit, the protected match it belongs to, counted from 1; 0 outside one. Empty without `protect`. */
-  readonly k: Uint16Array;
+  /**
+   * Protected matches as offset pairs, start then end, in order. A start is clipped to the
+   * text's, but an end past the text's stays, so a cut at the end of a range of a longer
+   * text still sees the match run on.
+   * Empty without `protect`. A few numbers, where marking every unit took an array as
+   * long as the text, which in Chromium cost more than the regex.
+   */
+  readonly k: number[];
+  /** How many matches of the whole text come before the first pair, so `keep` counts from the start of it. */
+  readonly m: number;
   /** Whether every UTF-16 unit is a grapheme below U+0300, so widths are found by code. */
   readonly u: boolean;
   /** Letter spacing in px, counted per UTF-16 unit: WebKit spaces glyphs, several to a grapheme in Indic and Thai. */
@@ -87,7 +95,7 @@ let segmenter: Intl.Segmenter | undefined;
 let flags: Uint8Array | undefined;
 // Offsets 0, 1, 2…: every simple text's grapheme starts. It only grows, and is shared.
 const identity = [0];
-const none = new Uint16Array(0);
+const none: number[] = [];
 
 /** A cut from its two offsets; for pretrunc's own entries, not re-exported. */
 export const pack = (head: number, tail: number): Cut => (head * SHIFT + tail) as Cut;
@@ -225,16 +233,19 @@ const build = (
   // The width that has to fit for the text to show whole, kerning counted as for a cut.
   const y = x ? w[n]! : f.m(t) + spacing * t.length + g * (t.split("\t").length - 1) + d[n]!;
   let k = none;
+  let m = 0;
   if (options.protect) {
-    k = new Uint16Array(t.length + 1);
-    let match = 0;
+    k = [];
+    let before = 0;
     // Counted over the whole text, so `keep` names the same match in any range of it.
-    for (const m of full.matchAll(options.protect)) {
-      const start = m.index - from;
-      match++;
-      if (start < t.length && start + m[0].length > 0) {
-        k.fill(match, Math.max(0, start), start + m[0].length);
+    for (const match of full.matchAll(options.protect)) {
+      const start = match.index - from;
+      const end = start + match[0].length;
+      if (start < t.length && end > 0) {
+        if (!k.length) m = before;
+        k.push(Math.max(0, start), end);
       }
+      before++;
     }
   }
   const p: Internal = {
@@ -249,6 +260,7 @@ const build = (
     x,
     y,
     k,
+    m,
     u: simple,
     s: spacing,
     g,
@@ -281,7 +293,9 @@ const isBreak = (i: number) => i > O && i < N && ((P.c[i - 1]! | P.c[i]!) & 1) !
 // Whether a cut before grapheme `i` falls inside a protected match.
 const inside = (i: number) => {
   const at = P.b[i]!;
-  return P.k[at]! > 0 && P.k[at] === P.k[at - 1];
+  const k = P.k;
+  for (let j = 0; j < k.length && k[j]! < at; j += 2) if (at < k[j + 1]!) return true;
+  return false;
 };
 const kern = (left: string, right: string) =>
   widthOf(P.f, left + right) - widthOf(P.f, left) - widthOf(P.f, right);
@@ -456,8 +470,10 @@ export const cutFrom = (
     let fixed = -1;
     if (options.tail !== undefined) fixed = Math.max(0, N - options.tail);
     else if (options.keep !== undefined) {
+      // The first grapheme that starts inside match `keep`, or none.
+      const j = 2 * (options.keep - p.m);
       fixed = 0;
-      while (fixed < N && k[b[fixed]!] !== options.keep + 1) fixed++;
+      while (fixed < N && !(j >= 0 && b[fixed]! >= k[j]! && b[fixed]! < k[j + 1]!)) fixed++;
     }
     let head = r * ratio;
     if (fixed >= 0 && fixed < N && tailSide(fixed) <= r) {

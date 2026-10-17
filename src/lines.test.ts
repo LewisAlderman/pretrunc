@@ -175,6 +175,12 @@ describe("clamp", () => {
 });
 
 describe("clamp examples", () => {
+  it("keeps a protected match whole when it runs on past a hard break", () => {
+    // The last line's cut sees only "ab", up to the break; the match goes on to "cd".
+    const p = prepareLines("ab\ncd ef", FONT, { whiteSpace: "pre-wrap", protect: /[a-d\n]+/g });
+    assert.strictEqual(toText(p, clamp(p, 100, 1, { words: false })), "…");
+  });
+
   it("keeps a tail when the ellipsis takes a line of its own (#87)", () => {
     const p = prepareLines("x/y Supercalifragilistic", FONT);
     // At 42 px "…" ends its line, so the word start can't follow it; graphemes can.
