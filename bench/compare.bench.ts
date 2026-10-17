@@ -68,22 +68,31 @@ const sentences = [
 
 // Every input distinct, as rows in a real table are, so no approach gets to reuse a
 // whole result from its caches; words repeat across them, as names and folders do.
-const names = Array.makeBy(5000, (i) => {
-  const initial = String.fromCharCode(65 + (i % 26));
-  const name = `${firsts[i % firsts.length]} ${initial}. ${lasts[(i * 7) % lasts.length]}`;
-  return i % 3 ? `${name} ${i}` : `${name}-${lasts[(i * 11) % lasts.length]} ${i}`;
-});
-const paths = Array.makeBy(5000, (i) => {
-  const depth = 2 + (i % 5);
-  const parts = Array.makeBy(depth, (d) => folders[(i + d * 3) % folders.length]!);
-  return `~/${Array.join(parts, "/")}/${i}-${files[i % files.length]}`;
-});
-const paragraphs = Array.makeBy(500, (i) =>
-  Array.join(
-    Array.makeBy(2 + (i % 4), (k) => sentences[(i + k) % sentences.length]!),
-    ` (${i}) `,
-  ),
-);
+// Each set numbers its rows from `base`, so a set with a new base has unique words no
+// run has measured.
+const makeNames = (base: number) =>
+  Array.makeBy(5000, (i) => {
+    const initial = String.fromCharCode(65 + (i % 26));
+    const name = `${firsts[i % firsts.length]} ${initial}. ${lasts[(i * 7) % lasts.length]}`;
+    const n = base + i;
+    return i % 3 ? `${name} ${n}` : `${name}-${lasts[(i * 11) % lasts.length]} ${n}`;
+  });
+const makePaths = (base: number) =>
+  Array.makeBy(5000, (i) => {
+    const depth = 2 + (i % 5);
+    const parts = Array.makeBy(depth, (d) => folders[(i + d * 3) % folders.length]!);
+    return `~/${Array.join(parts, "/")}/${base + i}-${files[i % files.length]}`;
+  });
+const makeParagraphs = (base: number) =>
+  Array.makeBy(500, (i) =>
+    Array.join(
+      Array.makeBy(2 + (i % 4), (k) => sentences[(i + k) % sentences.length]!),
+      ` (${base + i}) `,
+    ),
+  );
+const names = makeNames(0);
+const paths = makePaths(0);
+const paragraphs = makeParagraphs(0);
 
 let span: HTMLSpanElement;
 let block: HTMLDivElement;
@@ -117,6 +126,21 @@ const time = (run: () => void) => {
 const cold = () => {
   forget();
   clearCache();
+};
+// The median of 7 cold runs, each on a set of inputs no run has seen, built before the
+// clock starts. Engines keep their own cache of text widths, below anything `forget`
+// or `clearCache` reaches, so a run on text an earlier run measured is partly warm:
+// rerunning one set favoured whichever approach leaned on the engine's cache (#66).
+let sets = 0;
+const timeCold = <T>(make: (base: number) => T, run: (inputs: T) => void) => {
+  const inputs = Array.makeBy(7, () => make(++sets * 1_000_000));
+  const samples = Array.map(inputs, (set) => {
+    cold();
+    const start = performance.now();
+    run(set);
+    return performance.now() - start;
+  });
+  return Array.sort(samples, Order.Number)[3]!;
 };
 const overflowsOneLine = (texts: ReadonlyArray<string>, width: number) =>
   Array.filter(texts, (text) => {
@@ -171,8 +195,7 @@ describe("pretrunc against the prior art", () => {
     const ew = fontFace(FONT).m(ELLIPSIS);
     const space = fontFace(FONT).m(" ");
     let ours: string[] = [];
-    const oursCold = time(() => {
-      cold();
+    const oursCold = timeCold(makeNames, (names) => {
       ours = Array.map(names, (name) => {
         const p = prepare(name, FONT);
         return toText(p, cut(p, width));
@@ -184,8 +207,7 @@ describe("pretrunc against the prior art", () => {
     });
 
     let demo: string[] = [];
-    const demoCold = time(() => {
-      cold();
+    const demoCold = timeCold(makeNames, (names) => {
       demo = Array.map(names, (name) => {
         const lines = clampLines(prepareWithSegments(name, FONT), width, 1, ew, space);
         return lines[0] === name ? name : `${lines[0] ?? ""}${ELLIPSIS}`;
@@ -197,8 +219,7 @@ describe("pretrunc against the prior art", () => {
     });
 
     let theirs: string[] = [];
-    const theirsCold = time(() => {
-      cold();
+    const theirsCold = timeCold(makeNames, (names) => {
       theirs = Array.map(names, (name) => {
         const at = findTruncationPoint(name, 1, width, FONT, ew);
         return at < name.length ? name.slice(0, at) + ELLIPSIS : name;
@@ -235,8 +256,7 @@ describe("pretrunc against the prior art", () => {
     const space = fontFace(FONT).m(" ");
     const options = { at: "middle", keep: 0 } as const;
     let ours: string[] = [];
-    const oursCold = time(() => {
-      cold();
+    const oursCold = timeCold(makePaths, (paths) => {
       ours = Array.map(paths, (path) => {
         const p = prepare(path, FONT, { protect: /[^/]+$/g });
         return toText(p, cut(p, width, options));
@@ -248,8 +268,7 @@ describe("pretrunc against the prior art", () => {
     });
 
     let demo: string[] = [];
-    const demoCold = time(() => {
-      cold();
+    const demoCold = timeCold(makePaths, (paths) => {
       demo = Array.map(paths, (path) =>
         layoutMiddle(createLabel(path, FONT), width, ELLIPSIS, ew, space),
       );
@@ -282,8 +301,7 @@ describe("pretrunc against the prior art", () => {
     const ew = fontFace(FONT).m(ELLIPSIS);
     const space = fontFace(FONT).m(" ");
     let ours: string[] = [];
-    const oursCold = time(() => {
-      cold();
+    const oursCold = timeCold(makeParagraphs, (paragraphs) => {
       ours = Array.map(paragraphs, (text) => {
         const p = prepareLines(text, FONT);
         return toText(p, clamp(p, width, 3));
@@ -297,8 +315,7 @@ describe("pretrunc against the prior art", () => {
     // art does either, so they're pretrunc's alone.
     const elsewhere = (at: "start" | "middle"): Row => {
       let kept: string[] = [];
-      const coldMs = time(() => {
-        cold();
+      const coldMs = timeCold(makeParagraphs, (paragraphs) => {
         kept = Array.map(paragraphs, (text) => {
           const p = prepareLines(text, FONT);
           return toText(p, clamp(p, width, 3, { at }));
@@ -324,8 +341,7 @@ describe("pretrunc against the prior art", () => {
       return kept.length >= text.length ? text : kept + ELLIPSIS;
     };
     let demo: string[] = [];
-    const demoCold = time(() => {
-      cold();
+    const demoCold = timeCold(makeParagraphs, (paragraphs) => {
       demo = Array.map(paragraphs, (text) =>
         joined(clampLines(prepareWithSegments(text, FONT), width, 3, ew, space), text),
       );
@@ -336,8 +352,7 @@ describe("pretrunc against the prior art", () => {
     });
 
     let theirs: string[] = [];
-    const theirsCold = time(() => {
-      cold();
+    const theirsCold = timeCold(makeParagraphs, (paragraphs) => {
       theirs = Array.map(paragraphs, (text) => {
         const at = findTruncationPoint(text, 3, width, FONT, ew);
         return at < text.length ? text.slice(0, at) + ELLIPSIS : text;
