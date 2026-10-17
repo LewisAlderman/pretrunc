@@ -1,0 +1,367 @@
+/* A cutting mat: text is trimmed on it, and its grid is a ruler in px. */
+:root {
+  --mat: #24524a;
+  --mat-deep: #1b3f39;
+  --grid-minor: rgb(255 255 255 / 0.06);
+  --grid-major: rgb(255 255 255 / 0.16);
+  --paper: #f6f8f7;
+  --ink: #15201d;
+  --ink-soft: #4b5a55;
+  --rule: #cfe3dc;
+  --blade: #f5c542;
+  --cut: rgb(245 197 66 / 0.45);
+  --font: "Inter Variable", system-ui, sans-serif;
+  --code: ui-monospace, "SF Mono", Menlo, monospace;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--mat-deep);
+  color: var(--rule);
+  font: 16px/1.5 var(--font);
+}
+
+main {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 40px 24px 80px;
+}
+
+h1 {
+  margin: 0;
+  color: var(--paper);
+  font-size: 56px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+h2 {
+  margin: 56px 0 8px;
+  color: var(--paper);
+  font-size: 28px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+h3 {
+  margin: 0;
+  color: var(--paper);
+  font-size: 17px;
+  font-weight: 600;
+}
+
+p {
+  max-width: 68ch;
+  margin: 8px 0 0;
+}
+
+a {
+  color: var(--blade);
+}
+
+code,
+pre {
+  font-family: var(--code);
+  font-size: 13px;
+}
+
+:focus-visible {
+  outline: 2px solid var(--blade);
+  outline-offset: 2px;
+}
+
+/* The header: what it is, and one control that sets every frame at once. */
+.top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.every {
+  display: grid;
+  gap: 6px;
+  min-width: 280px;
+}
+
+/* The mat. Its grid lines fall every 10 px and 50 px from the left edge, so a frame's
+   width can be read off it. Frames resize from their corner. */
+.mat {
+  position: relative;
+  /* Narrower than the examples' text, so each one shows its cut on load. */
+  width: 240px;
+  min-width: 40px;
+  max-width: 100%;
+  padding: 12px 0 22px;
+  overflow: hidden;
+  resize: horizontal;
+  border-radius: 6px;
+  background-color: var(--mat);
+  background-image:
+    linear-gradient(to right, var(--grid-major) 1px, transparent 1px),
+    linear-gradient(to right, var(--grid-minor) 1px, transparent 1px);
+  background-size:
+    50px 100%,
+    10px 100%;
+}
+
+/* The playground's mat starts narrower than its column, so something is cut on load. */
+.mat.wide {
+  width: min(100%, 440px);
+}
+
+/* The width, read live, in the mat's corner. */
+.measure {
+  position: absolute;
+  right: 14px;
+  bottom: 4px;
+  color: var(--blade);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+/* The paper the text sits on spans the mat exactly, so the text's room is the mat's
+   width. */
+.strip {
+  margin: 0;
+  padding: 6px 0;
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: 0 1px 0 rgb(0 0 0 / 0.2);
+}
+
+.gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 32px 28px;
+  margin-top: 20px;
+}
+
+.frame {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  margin: 0;
+}
+
+.frame p {
+  margin: 0;
+  color: var(--rule);
+  font-size: 14px;
+}
+
+.frame pre {
+  margin: 0;
+  overflow-x: auto;
+  color: var(--rule);
+  white-space: pre-wrap;
+}
+
+/* The playground: controls beside a wide mat. */
+.play {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  gap: 28px;
+  margin-top: 20px;
+}
+
+@media (max-width: 760px) {
+  .play {
+    grid-template-columns: 1fr;
+  }
+}
+
+.controls {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+}
+
+.controls label,
+.every label {
+  display: grid;
+  gap: 4px;
+  font-size: 14px;
+}
+
+.controls .inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.controls fieldset {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-size: 14px;
+}
+
+.controls legend {
+  margin-bottom: 4px;
+  padding: 0;
+}
+
+input,
+select,
+textarea,
+button {
+  font: inherit;
+  font-size: 14px;
+}
+
+input[type="text"],
+input[type="number"],
+select,
+textarea {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--mat);
+  border-radius: 4px;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+input[type="range"] {
+  width: 100%;
+  accent-color: var(--blade);
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--blade);
+}
+
+textarea {
+  min-height: 96px;
+  resize: vertical;
+}
+
+.error {
+  color: var(--blade);
+  font-size: 13px;
+}
+
+/* What the cut kept and what it removed, over the whole text. */
+.readout {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.whole {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 4px;
+  background: var(--paper);
+  color: var(--ink);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.whole del {
+  background: var(--cut);
+  text-decoration: line-through;
+  text-decoration-color: var(--ink-soft);
+}
+
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+  margin: 0;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.facts dt {
+  color: var(--rule);
+}
+
+.facts dd {
+  margin: 0;
+  color: var(--paper);
+}
+
+.facts div {
+  display: flex;
+  gap: 6px;
+}
+
+/* An element standing in for the ellipsis, measured by its width. */
+.chip {
+  display: inline-block;
+  width: 28px;
+  margin-left: 2px;
+  border-radius: 9px;
+  background: var(--mat);
+  color: var(--paper);
+  font-size: 12px;
+  line-height: 18px;
+  text-align: center;
+  vertical-align: 1px;
+}
+
+.more {
+  margin-left: 4px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 3px;
+  background: var(--blade);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+canvas {
+  display: block;
+  width: 100%;
+  background: var(--paper);
+}
+
+/* The stress table: one column you drag wider or narrower, thousands of cuts a frame. */
+.table {
+  max-height: 420px;
+  margin-top: 16px;
+  overflow: auto;
+  border-radius: 6px;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.table table {
+  border-collapse: collapse;
+  font-size: 14px;
+  table-layout: fixed;
+}
+
+.table th,
+.table td {
+  padding: 3px 10px;
+  border-bottom: 1px solid #dfe7e4;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.table th {
+  position: sticky;
+  top: 0;
+  background: #e8eeec;
+  font-weight: 600;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    scroll-behavior: auto;
+  }
+}
