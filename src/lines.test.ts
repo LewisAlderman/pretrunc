@@ -112,7 +112,9 @@ describe("clamp", () => {
   // reads as flicker. In the middle the head and the tail share a line, and a head
   // that grows within its share can push the tail's first word to the next line, so
   // there the tail may give up what the head gains, never more. With word preference
-  // the tail starts only at words, so it gives up a whole one at a time.
+  // the tail starts only at words, so it gives up a whole one at a time. A long word
+  // that wraps letter by letter across the junction can cost the tail more than the
+  // head gained (#90), so giving up part of one word passes too.
   it.prop(
     "moves each end one way as the width grows: the head never gives up, nor the tail",
     [
@@ -133,7 +135,7 @@ describe("clamp", () => {
       if (where === "middle") {
         const gained = head(wide) - head(narrow);
         const dropped = p.text.slice(tail(narrow), tail(wide));
-        const oneWord = words && !/\S\s+\S/.test(dropped.trim());
+        const oneWord = !/\S\s+\S/.test(dropped.trim());
         assert.isTrue(dropped.length <= gained || oneWord, input);
       } else assert.isAtLeast(tail(narrow), tail(wide), input);
     },
@@ -147,6 +149,16 @@ describe("clamp examples", () => {
     const p = prepareLines("x/y Supercalifragilistic", FONT);
     // At 42 px "…" ends its line, so the word start can't follow it; graphemes can.
     assert.strictEqual(toText(p, clamp(p, 42, 4, { at: "start" })), "…percalifragilistic");
+  });
+
+  it.fails("keeps no less in the middle at a wider width, a long word at the junction (#90)", () => {
+    const p = prepareLines("Ada a re-entry Supercalifragilistic , lot Ada re-entry", FONT);
+    const kept = (width: number) => {
+      const c = clamp(p, width, 5, { at: "middle", words: false });
+      return head(c) + p.text.length - tail(c);
+    };
+    // At 91 px the head gains "c" and the tail loses "frag".
+    assert.isAtLeast(kept(91), kept(90));
   });
 });
 

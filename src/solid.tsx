@@ -1,5 +1,14 @@
 import type { JSX } from "@solidjs/web";
-import { type Accessor, createMemo, createSignal, onSettled, Show, untrack } from "solid-js";
+import {
+  type Accessor,
+  createContext,
+  createMemo,
+  createSignal,
+  onSettled,
+  Show,
+  untrack,
+  useContext,
+} from "solid-js";
 import {
   cut,
   type Cut,
@@ -45,15 +54,39 @@ export interface Box {
   readonly fonts: Accessor<number>;
 }
 
+export interface FontScopeProps {
+  /** A CSS font shorthand that every cut inside is in, unless it's given its own. */
+  readonly font?: string;
+  /** CSS `letter-spacing` in px for every cut inside, unless it's given its own. */
+  readonly letterSpacing?: number;
+  readonly children?: JSX.Element;
+}
+
+const Scope = createContext<FontScopeProps>({});
+
 /**
- * The width and font text is cut to: the ones given, or an element's, observed.
- * Whether to observe the width and read the font is decided once, when it settles.
+ * Gives every `Truncate`, `Clamp` and `createBox` inside the font and letter spacing
+ * their text renders in, once for a list. Each would otherwise read its element's
+ * computed style when it mounts: 5,000 rows take 4 to 5 ms of style reads. Cuts follow
+ * what's given, so give what the rows really render in.
+ */
+export function FontScope(props: FontScopeProps): JSX.Element {
+  return <Scope value={props}>{props.children}</Scope>;
+}
+
+/**
+ * The width and font text is cut to: the ones given, then a `FontScope`'s, or an
+ * element's, observed. Whether to observe the width and read the font is decided once,
+ * when it settles.
  */
 export const createBox = (props: {
   readonly width?: number;
   readonly font?: string;
   readonly letterSpacing?: number;
 }): Box => {
+  const scope = useContext(Scope);
+  const given = () => props.font ?? scope.font;
+  const spacing = () => props.letterSpacing ?? scope.letterSpacing;
   let element: Element | undefined;
   const [observed, setObserved] = createSignal<number>();
   const [computed, setComputed] = createSignal<string>();
@@ -61,9 +94,12 @@ export const createBox = (props: {
   const [fonts, setFonts] = createSignal(0);
   onSettled(() => {
     const stops = [onFonts(() => setFonts((n) => n + 1))];
-    if (element && untrack(() => props.font) === undefined) setComputed(fontOf(element));
-    if (element && untrack(() => props.letterSpacing) === undefined) {
-      setSpaced(spacingOf(element));
+    const readFont = untrack(given) === undefined;
+    const readSpacing = untrack(spacing) === undefined;
+    if (element && (readFont || readSpacing)) {
+      const style = getComputedStyle(element);
+      if (readFont) setComputed(fontOf(element, style));
+      if (readSpacing) setSpaced(spacingOf(element, style));
     }
     if (element && untrack(() => props.width) === undefined) {
       stops.push(observe(element, setObserved));
@@ -75,8 +111,8 @@ export const createBox = (props: {
   return {
     ref: (e) => (element = e),
     width: () => props.width ?? observed(),
-    font: () => props.font ?? computed(),
-    spacing: () => props.letterSpacing ?? spaced(),
+    font: () => given() ?? computed(),
+    spacing: () => spacing() ?? spaced(),
     fonts,
   };
 };

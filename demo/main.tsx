@@ -20,7 +20,7 @@ import { observe, onFonts } from "../src/dom.ts";
 import { clamp, prepareLines } from "../src/lines.ts";
 import { tableFace } from "../src/metrics.ts";
 import { Clamp } from "../src/solid-lines.tsx";
-import { createBox, createCut, Truncate } from "../src/solid.tsx";
+import { createBox, createCut, FontScope, Truncate } from "../src/solid.tsx";
 
 const FAMILY = '"Inter Variable"';
 
@@ -64,6 +64,12 @@ function Frame(props: {
 }
 
 const NAME = "Alexandra Richardson-Featherstonehaugh";
+const PEOPLE = [
+  NAME,
+  "Bartholomew Okonkwo-Castellanos",
+  "Chen Nakamura",
+  "Wilhelmina van der Berg",
+];
 const PATH = "~/Projects/atlas/packages/renderer/src/text/layout/line-breaker.test.ts";
 const STORY =
   "A weekend cabin on the north shore, twenty minutes from the ferry. Sleeps six, with a wood stove, no reception to speak of, and a rowing boat you're welcome to borrow. Bring boots: the path down to the water is steep, and the nearest shop is back across on the mainland.";
@@ -301,6 +307,17 @@ function Gallery() {
         >
           <div class="strip" style={{ "letter-spacing": "2px" }}>
             <Truncate text={NAME} at="middle" />
+          </div>
+        </Frame>
+        <Frame
+          title="One font for a list"
+          note="Every row would read its own computed style when it mounts. A FontScope gives them the font once; give it the font the rows really render in."
+          code={`<FontScope font='14px "Inter Variable"' letterSpacing={0}>\n  <For each={people}>\n    {(name) => <Truncate text={name} at="middle" />}\n  </For>\n</FontScope>`}
+        >
+          <div class="strip" style={{ font: `14px ${FAMILY}` }}>
+            <FontScope font={`14px ${FAMILY}`} letterSpacing={0}>
+              <For each={PEOPLE}>{(name) => <Truncate text={name} at="middle" />}</For>
+            </FontScope>
           </div>
         </Frame>
         <Frame

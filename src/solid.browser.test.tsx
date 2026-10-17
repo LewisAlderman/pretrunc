@@ -4,7 +4,7 @@ import type { JSX } from "@solidjs/web";
 import { afterEach, assert, beforeAll, describe, expect, it } from "@effect/vitest";
 import { createSignal } from "solid-js";
 import { page } from "vite-plus/test/browser/context";
-import { Truncate } from "./solid.tsx";
+import { FontScope, Truncate } from "./solid.tsx";
 
 const FAMILY = "Inter Adapter";
 const NAME = "Alexandra Richardson-Featherstonehaugh";
@@ -57,6 +57,33 @@ describe("Truncate", () => {
     const name = page.getByText(/…/);
     await expect.element(name).toBeInTheDocument();
     assert.isAtMost(laidOut(name.element()), 140);
+  });
+
+  it("reads its element's style once, and not at all in a FontScope, cutting to the scope's font", async () => {
+    const original = window.getComputedStyle;
+    let reads = 0;
+    window.getComputedStyle = (...args) => {
+      reads++;
+      return original.apply(window, args);
+    };
+    try {
+      // The scope's font is twice the size the row renders in, so its cut keeps less.
+      render(() => (
+        <Box width={240}>
+          <Truncate text={NAME} words={false} class="own" />
+          <FontScope font={`32px "${FAMILY}"`} letterSpacing={0}>
+            <Truncate text={NAME} words={false} class="scoped" />
+          </FontScope>
+        </Box>
+      ));
+      await expect.element(page.getByTitle(NAME).nth(1)).toBeInTheDocument();
+      assert.strictEqual(reads, 1);
+    } finally {
+      window.getComputedStyle = original;
+    }
+    const own = document.querySelector(".own")!.textContent!;
+    const scoped = document.querySelector(".scoped")!.textContent!;
+    assert.isBelow(scoped.length, own.length * 0.7, JSON.stringify([own, scoped]));
   });
 
   it("paints the whole text when asked, so copying it gives every character", async () => {

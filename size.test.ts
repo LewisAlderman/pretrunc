@@ -15,7 +15,7 @@ const budgets = {
   "src/dom.ts": 400,
   // 600 was a guess before it was built; both renderings, width tracking and letter
   // spacing cost 980.
-  "src/solid.tsx": 1024,
+  "src/solid.tsx": 1120,
   // 1,024 held until pre-wrap, letter spacing and boxes for a width-only ellipsis and
   // the room after the text: 1.5 KB.
   "src/lines.ts": 1536,

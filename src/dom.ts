@@ -23,16 +23,16 @@ export const observe = (element: Element, listener: (width: number) => void): ((
 /**
  * The canvas font for an element's computed style. Built from the longhands: the
  * `font` shorthand reads back empty in some engines, and `font-stretch` reads back as
- * a percentage, which canvas rejects, so it is left out.
+ * a percentage, which canvas rejects, so it is left out. Reading the font and the
+ * letter spacing, pass one `getComputedStyle(element)` to both: computing it is most of
+ * the cost, and twice takes twice as long.
  */
-export const fontOf = (element: Element): string => {
-  const style = getComputedStyle(element);
-  return `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
-};
+export const fontOf = (element: Element, style = getComputedStyle(element)): string =>
+  `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
 
 /** An element's computed `letter-spacing` in px; "normal" is 0. */
-export const spacingOf = (element: Element): number =>
-  parseFloat(getComputedStyle(element).letterSpacing) || 0;
+export const spacingOf = (element: Element, style = getComputedStyle(element)): number =>
+  parseFloat(style.letterSpacing) || 0;
 
 const loaded = new Set<() => void>();
 
