@@ -17,8 +17,9 @@ const budgets = {
   // spacing cost 980.
   "src/solid.tsx": 1120,
   // 1,024 held until pre-wrap, letter spacing and boxes for a width-only ellipsis and
-  // the room after the text: 1.5 KB; tables of tail starts, kept per text, 1.7 KB.
-  "src/lines.ts": 1728,
+  // the room after the text: 1.5 KB; tables of tail starts, kept per text, 1.7 KB;
+  // middle clamps that never show less in a wider box, 1.9 KB.
+  "src/lines.ts": 1920,
   "src/solid-lines.tsx": 1024,
   "src/metrics.ts": 600,
 };

@@ -6,7 +6,7 @@ Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, lik
 
 | | cold ms | warm ms | overflows |
 | --- | ---: | ---: | ---: |
-| pretrunc `cut` | 17.0 | 1.0 | 0 |
+| pretrunc `cut` | 16.0 | 1.0 | 0 |
 | pretext demo `clampLines` | 11.0 | 1.0 | 0 |
 | pretext-truncate `findTruncationPoint` | 13.0 | n/a | 16 |
 
@@ -14,20 +14,20 @@ Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, lik
 
 | | cold ms | warm ms | overflows |
 | --- | ---: | ---: | ---: |
-| pretrunc `cut`, middle | 90.0 | 1.0 | 0 |
-| pretext demo `layoutMiddle` | 263.0 | 6.0 | 10 |
+| pretrunc `cut`, middle | 89.0 | 1.0 | 0 |
+| pretext demo `layoutMiddle` | 261.0 | 6.0 | 10 |
 
 ### 500 paragraphs, end of 3 lines, 260 px
 
 | | cold ms | warm ms | overflows |
 | --- | ---: | ---: | ---: |
-| pretrunc `clamp` | 14.0 | 1.0 | 0 |
+| pretrunc `clamp` | 12.0 | 1.0 | 0 |
 | pretext demo `clampLines` | 7.0 | 1.0 | 0 |
-| pretext-truncate `findTruncationPoint` | 9.0 | n/a | 18 |
+| pretext-truncate `findTruncationPoint` | 10.0 | n/a | 18 |
 
 ### 500 paragraphs, start or middle of 3 lines, 260 px
 
 | | cold ms | warm ms | overflows |
 | --- | ---: | ---: | ---: |
-| pretrunc `clamp`, start | 20.0 | 11.0 | 0 |
-| pretrunc `clamp`, middle | 21.0 | 8.0 | 0 |
+| pretrunc `clamp`, start | 19.0 | 11.0 | 0 |
+| pretrunc `clamp`, middle | 18.0 | 7.0 | 0 |

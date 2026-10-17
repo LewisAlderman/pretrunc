@@ -134,14 +134,13 @@ describe("clamp", () => {
   );
 
   // A drag moves the width a pixel at a time; a clamp whose ends jump one way and back
-  // reads as flicker. In the middle the head and the tail share a line, and a head
-  // that grows within its share can push the tail's first word to the next line, so
-  // there the tail may give up what the head gains, never more. With word preference
-  // the tail starts only at words, so it gives up a whole one at a time. A long word
-  // that wraps letter by letter across the junction can cost the tail more than the
-  // head gained (#90), so giving up part of one word passes too.
+  // reads as flicker. In the middle the head and the tail share a line, so the two
+  // trade: a head that grows can push the tail's start along, and when they wrap as one
+  // run a shorter head can let the tail keep more (#90). There what must hold is that a
+  // wider box never shows less text, white space and the `,;:` a trimming cut steps
+  // over aside.
   it.prop(
-    "moves each end one way as the width grows: the head never gives up, nor the tail",
+    "moves each end one way as the width grows, and in the middle never shows less",
     [
       text,
       between(40, 300),
@@ -156,18 +155,14 @@ describe("clamp", () => {
       const wide = clamp(p, width + step, n, { at: where, words });
       if (!truncated(wide)) return;
       const input = JSON.stringify([p.text, width, step, n, where, words]);
-      assert.isAtMost(head(narrow), head(wide), input);
       if (where === "middle") {
-        const gained = head(wide) - head(narrow);
-        // A trimming cut never starts a tail on white space or `,;:`, so the tail steps
-        // over them without giving them up as text.
-        const dropped = p.text
-          .slice(tail(narrow), tail(wide))
-          .replace(/[\s,;:]+/g, " ")
-          .trim();
-        const oneWord = !dropped.includes(" ");
-        assert.isTrue(dropped.length <= gained || oneWord, input);
-      } else assert.isAtLeast(tail(narrow), tail(wide), input);
+        const shown = (c: typeof wide) =>
+          (p.text.slice(0, head(c)) + p.text.slice(tail(c))).replace(/[\s,;:]/g, "").length;
+        assert.isAtMost(shown(narrow), shown(wide), input);
+      } else {
+        assert.isAtMost(head(narrow), head(wide), input);
+        assert.isAtLeast(tail(narrow), tail(wide), input);
+      }
     },
     // Its failures sit at a few widths per text, so it runs more cases than the rest.
     { arbitrary: { runs: 20000 } },
@@ -187,7 +182,7 @@ describe("clamp examples", () => {
     assert.strictEqual(toText(p, clamp(p, 42, 4, { at: "start" })), "…percalifragilistic");
   });
 
-  it.fails("keeps no less in the middle at a wider width, a long word at the junction (#90)", () => {
+  it("keeps no less in the middle at a wider width, a long word at the junction (#90)", () => {
     const p = prepareLines("Ada a re-entry Supercalifragilistic , lot Ada re-entry", FONT);
     const kept = (width: number) => {
       const c = clamp(p, width, 5, { at: "middle", words: false });

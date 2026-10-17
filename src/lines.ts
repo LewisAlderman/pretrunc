@@ -295,57 +295,106 @@ export const clamp = (
   const offsetOf = (i: number) => (list[i]! < 0 ? length : c.at[list[i]!]!);
   const cursorOf = (i: number): LayoutCursor =>
     list[i]! < 0 ? START : { segmentIndex: c.seg[list[i]!]!, graphemeIndex: c.g[list[i]!]! };
-  for (;;) {
-    const used = share + ew;
-    // Where the tail may start, after the head (cutting nothing is no cut): word starts,
-    // or every grapheme start without word preference. When trimming, never white space
-    // nor `,;:`. The text's end always closes the list.
-    const starts = (wordsOnly: boolean) => {
-      c = startsOf(p, !wordsOnly);
-      if (list.length < c.n + 1) list = new Int32Array(2 * (c.n + 1));
-      listed = 0;
-      let lo = 0;
-      let hi = c.n;
-      while (lo < hi) {
-        const mid = (lo + hi) >> 1;
-        if (c.at[mid]! > h) hi = mid;
-        else lo = mid + 1;
-      }
-      for (let j = lo; j < c.n; j++) if (!(trim && c.f[j])) list[listed++] = j;
-      list[listed++] = -1;
-    };
-    // The first start whose tail fits the model: its lines, the first beside the head
-    // and the ellipsis, end by line n. A later start never takes more lines.
-    const first = () => {
-      let lo = 0;
-      let hi = listed - 1;
-      while (lo < hi) {
-        const mid = (lo + hi) >> 1;
-        if (linesFrom(cursorOf(mid), width - used, n - line) <= n - line) hi = mid;
-        else lo = mid + 1;
-      }
-      return lo;
-    };
-    // The cut settles on the real layout: later while it runs over, and, with no head
-    // whose room it would take, earlier while one more start still fits.
-    const settle = () => {
-      let i = first();
-      while (i < listed - 1 && !fits(h, offsetOf(i))) i++;
-      if (at === "start") while (i > 0 && fits(h, offsetOf(i - 1))) i--;
-      return i;
-    };
-    starts(words !== false);
-    let i = settle();
+  const used = share + ew;
+  // Where the tail may start, after head `h` (cutting nothing is no cut): word starts,
+  // or every grapheme start without word preference. When trimming, never white space
+  // nor `,;:`. The text's end always closes the list.
+  const starts = (h: number, wordsOnly: boolean) => {
+    c = startsOf(p, !wordsOnly);
+    if (list.length < c.n + 1) list = new Int32Array(2 * (c.n + 1));
+    listed = 0;
+    let lo = 0;
+    let hi = c.n;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (c.at[mid]! > h) hi = mid;
+      else lo = mid + 1;
+    }
+    for (let j = lo; j < c.n; j++) if (!(trim && c.f[j])) list[listed++] = j;
+    list[listed++] = -1;
+  };
+  // The first start whose tail fits the model: its lines, the first beside the head
+  // and the ellipsis, end by line n. A later start never takes more lines.
+  const first = () => {
+    let lo = 0;
+    let hi = listed - 1;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (linesFrom(cursorOf(mid), width - used, n - line) <= n - line) hi = mid;
+      else lo = mid + 1;
+    }
+    return lo;
+  };
+  // Whether the real layout refused the model's start for the last tail found.
+  let slipped = false;
+  // The cut settles on the real layout: later while it runs over, and, with no head
+  // whose room it would take, earlier while one more start still fits.
+  const settle = (h: number) => {
+    const model = first();
+    let i = model;
+    while (i < listed - 1 && !fits(h, offsetOf(i))) i++;
+    if (at === "start") while (i > 0 && fits(h, offsetOf(i - 1))) i--;
+    slipped ||= i > model;
+    return i;
+  };
+  // The earliest tail start that really fits after head `h`, or -1 when none does.
+  const tailOf = (h: number) => {
+    slipped = false;
+    starts(h, words !== false);
+    let i = settle(h);
     // With no word start that really fits, the tail starts between graphemes, as the
     // core falls back. Only after settling: the model can pass a word start that the
     // joined layout refuses, when the ellipsis takes a line of its own.
     if (i === listed - 1 && words !== false) {
-      starts(false);
-      i = settle();
+      starts(h, false);
+      i = settle(h);
+    }
+    return i < listed - 1 || fits(h, length) ? offsetOf(i) : -1;
+  };
+  for (;;) {
+    let t = tailOf(h);
+    if (t >= 0 || h <= from) {
+      if (t < 0) t = length;
+      // When the real layout refused the model's start, the head's last word and the tail
+      // wrap together: one more letter of head can push the ellipsis or the tail's first
+      // word to the next line and cost the tail more than it gave (#90). Then every
+      // shorter head back to the start of that word, even on a line before, is tried, and
+      // the one that keeps the most text in all wins, the longest on a tie, so a wider box
+      // doesn't show less. Text is counted without white space, which shows as nothing.
+      if (at === "middle" && slipped) {
+        const ink = (a: number, b: number) => {
+          let count = 0;
+          for (let i = a; i < b; i++) if (text.charCodeAt(i) > 32) count++;
+          return count;
+        };
+        const words = startsOf(p, false);
+        let lo = 0;
+        let hi = words.n;
+        while (lo < hi) {
+          const mid = (lo + hi) >> 1;
+          if (words.at[mid]! < h) lo = mid + 1;
+          else hi = mid;
+        }
+        // Spaces are segments too: the word is the last start that isn't one.
+        while (lo > 0 && words.f[lo - 1]) lo--;
+        const floor = lo ? words.at[lo - 1]! : 0;
+        let best = h;
+        let bestTail = t;
+        for (let shorter = h; shorter > floor;) {
+          shorter = Math.max(floor, back(shorter));
+          const rest = tailOf(shorter);
+          if (rest >= 0 && ink(rest, bestTail) > ink(shorter, best)) {
+            best = shorter;
+            bestTail = rest;
+          }
+        }
+        h = best;
+        t = bestTail;
+      }
+      return pack(h, t);
     }
     // With no tail at all still running over, as when the room after leaves less than
     // the head took, the head gives up a grapheme and the tail is found again.
-    if (h <= from || i < listed - 1 || fits(h, length)) return pack(h, offsetOf(i));
     h = Math.max(from, back(h));
   }
 };
