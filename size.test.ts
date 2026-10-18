@@ -10,8 +10,9 @@ import { build } from "vite-plus";
 const budgets = {
   // 1,024 was the first aim; every option the design picked cost 1.4 KB, the speed work
   // against the benchmark (bench/) 1.8 KB, and letter spacing, tabs and cutting from a
-  // range of a longer text 2.1 KB.
-  "src/index.ts": 2464,
+  // range of a longer text 2.1 KB. Dropping pretext's widths with the core's when a web
+  // font loads took it 1 byte past 2,464.
+  "src/index.ts": 2472,
   "src/dom.ts": 400,
   // 600 was a guess before it was built; both renderings, width tracking and letter
   // spacing cost 980.

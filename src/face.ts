@@ -49,14 +49,21 @@ export const fontFace = (font: string): Face => {
 };
 
 /**
- * Drops the canvas face for `font`, or every one, so text prepared afterwards is
- * measured again. Call it once a web font loads: widths measured before are the
- * fallback font's.
+ * Drops the canvas face for `font`, or every one, and with `pretrunc/lines` loaded
+ * every width pretext keeps, so text prepared afterwards is measured again. Call it
+ * once a web font loads: widths measured before are the fallback font's.
  */
 export const forget = (font?: string): void => {
   if (font === undefined) faces.clear();
   else faces.delete(font);
+  for (const clear of clears) clear();
 };
+
+// Caches beyond the core's that hold widths too: pretext's, which `pretrunc/lines`
+// registers so the core never imports pretext. pretext can't drop one font's widths,
+// so a `forget` of one font drops all of its.
+const clears: Array<() => void> = [];
+export const alsoForget = (clear: () => void): void => void clears.push(clear);
 
 /** The width of `text` in `f`, measured once. */
 export const widthOf = (f: Face, text: string): number => {

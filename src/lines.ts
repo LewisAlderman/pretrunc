@@ -1,4 +1,5 @@
 import {
+  clearCache,
   layout,
   type LayoutCursor,
   layoutNextLineRange,
@@ -22,7 +23,12 @@ import {
   type Prepared,
   prepareRange,
 } from "./cut.ts";
-import { fontFace, widthOf } from "./face.ts";
+import { alsoForget, fontFace, widthOf } from "./face.ts";
+
+// pretext keeps its own widths by font, so a `forget` after a web font loads drops them
+// too: kept, they are the fallback's, and a clamp can fit text in fewer lines than it
+// paints in.
+alsoForget(clearCache);
 
 /** Text prepared for laying out in lines with pretext. */
 export interface Lines {

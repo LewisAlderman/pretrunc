@@ -1,8 +1,9 @@
 import inter from "@fontsource-variable/inter/files/inter-latin-wght-normal.woff2?url";
 import { assert, beforeAll, describe, it } from "@effect/vitest";
 import { vi } from "vite-plus/test";
-import { Arbitrary, Array, Schema } from "effect";
+import { Arbitrary, Array, Effect, Schema } from "effect";
 import { head, tail, toText, truncated } from "./cut.ts";
+import { forget } from "./face.ts";
 import { clamp, prepareLines } from "./lines.ts";
 
 const FONT = '15px "Inter Lines"';
@@ -185,4 +186,24 @@ describe("clamp in a real engine", () => {
     assert.isAtMost(wrapsTo(beside, 143, 3, "middle", false, "pre-wrap", 0, "…", 30), 3);
     assert.isAtMost(wrapsTo(arabic, 97, 2, "start", false, "pre-wrap", 0, 15, 0), 2);
   });
+
+  it.effect("lays text out in a web font's widths once forget drops the fallback's", () =>
+    Effect.gen(function* () {
+      const text =
+        "Booked the cabin on the north shore for the offsite. Sleeps six, wood stove, no reception.";
+      const late = '15px "Inter Lines Late", monospace';
+      // Before its face loads, pretext measures the text in the fallback and keeps it.
+      clamp(prepareLines(text, late), 200, 2);
+      const face = new FontFace("Inter Lines Late", `url(${inter})`);
+      document.fonts.add(face);
+      yield* Effect.promise(() => face.load());
+      forget();
+      // The same font spelled differently, which nothing has measured: the web font's widths.
+      const fresh = 'normal 15px "Inter Lines Late", monospace';
+      assert.strictEqual(
+        clamp(prepareLines(text, late), 200, 2),
+        clamp(prepareLines(text, fresh), 200, 2),
+      );
+    }),
+  );
 });
