@@ -276,6 +276,7 @@ export const clamp = (lines: PreparedLines, width: number, options: ClampOptions
     return measureRichInlineStats(prepareRichInline(items, layoutOptions), width).lineCount <= n;
   };
   const held = (text: string) => text.replaceAll("\t", nbsp);
+  text.replace(/\/(?![\d…])/g, "/\u200b").replace(/…/g, "\u2060…");
   // Whether the cut keeping [0, h) and [at, length) really lays out in n lines. The
   // model lays the tail out apart from the head, and the joined line can wrap
   // differently: a tail that begins mid-word can't break where a line start could, and
@@ -399,7 +400,14 @@ export const clamp = (lines: PreparedLines, width: number, options: ClampOptions
   for (;;) {
     let t = tailOf(h);
     if (t >= 0 || h <= from) {
-      if (t < 0) t = length;
+      // No tail fits even with the head back at its line's start, so the head shows
+      // alone, and settles on the real layout like any other cut: an engine can break
+      // its lines elsewhere than the model, as Firefox breaks after a slash and not before
+      // an ellipsis, and wrap even the head alone past them (#7).
+      if (t < 0) {
+        t = length;
+        while (h > 0 && !fits(h, length)) h = back(h);
+      }
       // When the real layout refused the model's start, the head's last word and the tail
       // wrap together: one more letter of head can push the ellipsis or the tail's first
       // word to the next line and cost the tail more than it gave (sprint-poker#90). Then every
