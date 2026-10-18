@@ -105,6 +105,8 @@ export const snippets = (root: string): Plugin => ({
     if (!file.startsWith(join(root, "demo/snippets")) && !file.startsWith(join(root, "src"))) {
       return undefined;
     }
+    // Twoslash keeps the files it read, src/ among them, so a change there needs a new one.
+    if (file.startsWith(join(root, "src"))) highlighters.delete(root);
     const module = server.moduleGraph.getModuleById(resolved);
     if (module) server.moduleGraph.invalidateModule(module);
     return undefined;
