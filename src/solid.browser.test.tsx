@@ -2,10 +2,12 @@ import inter from "@fontsource-variable/inter/files/inter-latin-wght-normal.woff
 import { cleanup, render } from "@solidjs/testing-library";
 import type { JSX } from "@solidjs/web";
 import { afterEach, assert, beforeAll, describe, expect, it } from "@effect/vitest";
-import { createSignal } from "solid-js";
+import { createSignal, For } from "solid-js";
 import { vi } from "vite-plus/test";
 import { page } from "vite-plus/test/browser/context";
-import { FontProvider, Truncate } from "./solid.tsx";
+import { cut, prepare } from "./cut.ts";
+import { faceOf } from "./face.ts";
+import { createCut, FontProvider, Truncate } from "./solid.tsx";
 
 const FAMILY = "Inter Adapter";
 const NAME = "Alexandra Richardson-Featherstonehaugh";
@@ -138,5 +140,53 @@ describe("Truncate", () => {
     await late.load();
     await expect.poll(() => name.element().textContent).not.toBe(before);
     assert.isAtMost(laidOut(name.element()), 140);
+  });
+});
+
+describe("createCut", () => {
+  it("measures the ellipsis as a run of its own with separateEllipsis", async () => {
+    const font = `16px "${FAMILY}"`;
+    const widths = Array.from({ length: 121 }, (_, i) => 40 + i * 2);
+    function Probe(props: { readonly width: number; readonly separate: boolean }) {
+      const handle = createCut({
+        text: NAME,
+        get width() {
+          return props.width;
+        },
+        font,
+        letterSpacing: 0,
+        words: false,
+        get separateEllipsis() {
+          return props.separate;
+        },
+      });
+      return <span data-cut={`${props.width} ${props.separate}`}>{String(handle.cut())}</span>;
+    }
+    render(() => (
+      <For each={widths}>
+        {(width) => (
+          <>
+            <Probe width={width} separate={false} />
+            <Probe width={width} separate={true} />
+          </>
+        )}
+      </For>
+    ));
+    await expect.element(page.getByText(/^\d+$/).first()).toBeInTheDocument();
+    const shown = (width: number, separate: boolean) =>
+      Number(document.querySelector(`[data-cut="${width} ${separate}"]`)!.textContent);
+    const p = prepare(NAME, font);
+    // Apart, nothing kerns across the ellipsis, so it takes its own width as an element would.
+    const apart = { words: false, ellipsis: faceOf(font).m("…") };
+    let differ = 0;
+    for (const width of widths) {
+      const joined = cut(p, width, { words: false });
+      const alone = cut(p, width, apart);
+      assert.strictEqual(shown(width, false), joined, `${width} px, joined`);
+      assert.strictEqual(shown(width, true), alone, `${width} px, apart`);
+      if (joined !== alone) differ++;
+    }
+    // Only widths where kerning beside the ellipsis moves the cut tell the two apart.
+    assert.isAbove(differ, 0);
   });
 });
