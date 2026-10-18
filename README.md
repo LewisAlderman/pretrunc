@@ -31,12 +31,12 @@ import { cut, prepare, toText, truncated } from "pretrunc";
 const p = prepare("~/Projects/atlas/src/text/line-breaker.test.ts", '15px "Inter Variable"', {
   protect: /[^/]+$/g, // the file name stays whole or goes whole
 });
-const c = cut(p, 240, { at: "middle", keep: 0 }); // the tail starts at the file name
+const c = cut(p, 240, { at: "middle", tailMatch: 0 }); // the tail starts at the file name
 label.textContent = toText(p, c);
 if (truncated(c)) label.title = p.text;
 ```
 
-A cut is one number, the kept head and tail offsets packed together, so re-cutting thousands of rows allocates nothing; `head(c)`, `tail(c)` and `toText(p, c)` read it. Options: `at` (`"end"`, `"start"`, `"middle"`), `ratio`, `tail`, `keep`, `words`, `trim` and `ellipsis`, a string or the width of an element you render in its place.
+A cut is one number, the kept head and tail offsets packed together, so re-cutting thousands of rows allocates nothing; `head(c)`, `tail(c)` and `toText(p, c)` read it. Two cuts are `===` when they keep the same head and tail, so a memo can compare them. Options: `at` (`"end"`, `"start"`, `"middle"`), `ratio`, `tailGraphemes`, `tailMatch`, `words` (`true`, `false` or `{ within: px }`), `trim` and `ellipsis`, a string or the width of an element you render in its place. `font` is a CSS font shorthand or a `Face`: `canvasFace(font)`, `tableFace` from `pretrunc/metrics`, or `face(measure)` over your own.
 
 ## Several lines
 
@@ -44,23 +44,23 @@ A cut is one number, the kept head and tail offsets packed together, so re-cutti
 import { clamp, prepareLines } from "pretrunc/lines";
 
 const p = prepareLines(story, '16px "Inter Variable"', { whiteSpace: "pre-wrap" });
-const c = clamp(p, width, 3, { at: "end", after: moreButtonWidth });
+const c = clamp(p, width, { lines: 3, at: "end", after: moreButtonWidth });
 ```
 
 ## Solid
 
 ```tsx
-import { FontScope, Truncate } from "pretrunc/solid";
+import { FontProvider, Truncate } from "pretrunc/solid";
 import { Clamp } from "pretrunc/solid/lines";
 
-<Truncate text={path} at="middle" protect={/[^/]+$/g} keep={0} />
+<Truncate text={path} at="middle" protect={/[^/]+$/g} tailMatch={0} />
 <Clamp text={story} lines={3} expanded={open()} after={<button>more</button>} />
-<FontScope font='14px "Inter Variable"' letterSpacing={0}>
+<FontProvider font='14px "Inter Variable"' letterSpacing={0}>
   <For each={rows()}>{(row) => <Truncate text={row.name} />}</For>
-</FontScope>
+</FontProvider>
 ```
 
-`Truncate` and `Clamp` follow their element's width and font, re-cut on resize and when web fonts load, and with `render="full"` keep the whole text in the page for copying and screen readers. `FontScope` gives a list its font once, so its rows read no computed style.
+`Truncate` and `Clamp` follow their element's width and font, re-cut on resize and when web fonts load, and with `render="full"` keep the whole text in the page for copying and screen readers. `FontProvider` gives a list its font once, so its rows read no computed style.
 
 The package exports a `solid` condition pointing at its TypeScript source, which Solid's Vite plugin compiles with the app; other bundlers get the built JavaScript in `dist/`.
 

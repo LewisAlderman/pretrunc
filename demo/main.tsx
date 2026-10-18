@@ -20,7 +20,7 @@ import { observe, onFonts } from "../src/dom.ts";
 import { clamp, prepareLines } from "../src/lines.ts";
 import { tableFace } from "../src/metrics.ts";
 import { Clamp } from "../src/solid-lines.tsx";
-import { createBox, createCut, FontScope, Truncate } from "../src/solid.tsx";
+import { createBox, createCut, FontProvider, Truncate } from "../src/solid.tsx";
 
 const FAMILY = '"Inter Variable"';
 
@@ -243,22 +243,22 @@ function Gallery() {
         <Frame
           title="Keeping the file name"
           note="The tail starts at a protected match, which stays whole or goes whole."
-          code={`<Truncate\n  text={path}\n  at="middle"\n  protect={/[^/]+$/g}\n  keep={0}\n/>`}
+          code={`<Truncate\n  text={path}\n  at="middle"\n  protect={/[^/]+$/g}\n  tailMatch={0}\n/>`}
         >
           <div class="strip">
-            <Truncate text={PATH} at="middle" protect={/[^/]+$/g} keep={0} />
+            <Truncate text={PATH} at="middle" protect={/[^/]+$/g} tailMatch={0} />
           </div>
         </Frame>
         <Frame
           title="The last six characters of an ID"
-          note="tail keeps a number of graphemes at the end."
-          code={`<Truncate text={sha} at="middle" tail={6} words={false} />`}
+          note="tailGraphemes keeps a number of graphemes at the end."
+          code={`<Truncate text={sha} at="middle" tailGraphemes={6} words={false} />`}
         >
           <div class="strip">
             <Truncate
               text="sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
               at="middle"
-              tail={6}
+              tailGraphemes={6}
               words={false}
             />
           </div>
@@ -311,13 +311,13 @@ function Gallery() {
         </Frame>
         <Frame
           title="One font for a list"
-          note="Every row would read its own computed style when it mounts. A FontScope gives them the font once; give it the font the rows really render in."
-          code={`<FontScope font='14px "Inter Variable"' letterSpacing={0}>\n  <For each={people}>\n    {(name) => <Truncate text={name} at="middle" />}\n  </For>\n</FontScope>`}
+          note="Every row would read its own computed style when it mounts. A FontProvider gives them the font once; give it the font the rows really render in."
+          code={`<FontProvider font='14px "Inter Variable"' letterSpacing={0}>\n  <For each={people}>\n    {(name) => <Truncate text={name} at="middle" />}\n  </For>\n</FontProvider>`}
         >
           <div class="strip" style={{ font: `14px ${FAMILY}` }}>
-            <FontScope font={`14px ${FAMILY}`} letterSpacing={0}>
+            <FontProvider font={`14px ${FAMILY}`} letterSpacing={0}>
               <For each={PEOPLE}>{(name) => <Truncate text={name} at="middle" />}</For>
-            </FontScope>
+            </FontProvider>
           </div>
         </Frame>
         <Frame
@@ -403,10 +403,10 @@ function Playground() {
   const [text, setText] = createSignal<string>(PRESETS[1].text);
   const [lined, setLined] = createSignal(false);
   const [at, setAt] = createSignal<"start" | "middle" | "end">("middle");
-  const [split, setSplit] = createSignal<"ratio" | "tail" | "keep">("ratio");
+  const [split, setSplit] = createSignal<"ratio" | "tailGraphemes" | "tailMatch">("ratio");
   const [ratio, setRatio] = createSignal(0.5);
   const [tailCount, setTailCount] = createSignal(8);
-  const [keep, setKeep] = createSignal(0);
+  const [tailMatch, setTailMatch] = createSignal(0);
   const [protect, setProtect] = createSignal("[^/]+$");
   const [words, setWords] = createSignal<"on" | "off" | "px">("on");
   const [wordsPx, setWordsPx] = createSignal(24);
@@ -440,12 +440,12 @@ function Playground() {
   });
   const options = createMemo((): CutOptions => ({
     at: at(),
-    words: words() === "on" ? true : words() === "off" ? false : wordsPx(),
+    words: words() === "on" ? true : words() === "off" ? false : { within: wordsPx() },
     trim: trim(),
     ellipsis: ellipsis(),
     ...(at() === "middle" && split() === "ratio" ? { ratio: ratio() } : {}),
-    ...(at() === "middle" && split() === "tail" ? { tail: tailCount() } : {}),
-    ...(at() === "middle" && split() === "keep" ? { keep: keep() } : {}),
+    ...(at() === "middle" && split() === "tailGraphemes" ? { tailGraphemes: tailCount() } : {}),
+    ...(at() === "middle" && split() === "tailMatch" ? { tailMatch: tailMatch() } : {}),
   }));
   const protectOption = () => (pattern() ? { protect: pattern()! } : {});
   // The cut, how long it took, and the text it refers to.
@@ -460,7 +460,7 @@ function Playground() {
         letterSpacing: spacing(),
         ...protectOption(),
       });
-      const c = clamp(p, width, lines(), { ...options(), after: more() ? moreWidth() : 0 });
+      const c = clamp(p, width, { lines: lines(), ...options(), after: more() ? moreWidth() : 0 });
       return { text: p.text, c, ms: performance.now() - start, width };
     }
     const p = prepare(text(), font(), { letterSpacing: spacing(), ...protectOption() });
@@ -570,7 +570,7 @@ function Playground() {
           <Show when={at() === "middle"}>
             <fieldset>
               <legend>Middle split</legend>
-              <For each={["ratio", "tail", "keep"] as const}>
+              <For each={["ratio", "tailGraphemes", "tailMatch"] as const}>
                 {(kind) => (
                   <label class="inline">
                     <input
@@ -597,7 +597,7 @@ function Playground() {
                 />
               </label>
             </Show>
-            <Show when={split() === "tail"}>
+            <Show when={split() === "tailGraphemes"}>
               <label>
                 Graphemes kept at the end
                 <input
@@ -608,14 +608,14 @@ function Playground() {
                 />
               </label>
             </Show>
-            <Show when={split() === "keep"}>
+            <Show when={split() === "tailMatch"}>
               <label>
                 Protected match the tail starts at (from 0)
                 <input
                   type="number"
                   min="0"
-                  value={keep()}
-                  onInput={(e) => setKeep(Number(e.currentTarget.value))}
+                  value={tailMatch()}
+                  onInput={(e) => setTailMatch(Number(e.currentTarget.value))}
                 />
               </label>
             </Show>
@@ -855,7 +855,7 @@ function Stress() {
         const n = names[i]!;
         const p = paths[i]!;
         draft.shown[i * 2] = toText(n, cut(n, nameWidth(), { at: "middle" }));
-        draft.shown[i * 2 + 1] = toText(p, cut(p, pathWidth(), { at: "middle", keep: 0 }));
+        draft.shown[i * 2 + 1] = toText(p, cut(p, pathWidth(), { at: "middle", tailMatch: 0 }));
       }
       draft.ms = performance.now() - start;
     },

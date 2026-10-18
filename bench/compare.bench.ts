@@ -3,7 +3,8 @@ import { clearCache, prepareWithSegments } from "@chenglou/pretext";
 import { assert, beforeAll, describe, it } from "@effect/vitest";
 import { Array, Order } from "effect";
 import { commands } from "vite-plus/test/browser/context";
-import { cut, fontFace, forget, prepare, toText } from "../src/index.ts";
+import { faceOf } from "../src/face.ts";
+import { cut, forget, prepare, toText } from "../src/index.ts";
 import { clamp, prepareLines } from "../src/lines.ts";
 import { clampLines, createLabel, findTruncationPoint, layoutMiddle } from "./prior-art.ts";
 
@@ -192,8 +193,8 @@ const report = () => {
 describe("pretrunc against the prior art", () => {
   it("cuts 5,000 names at the end of one line", () => {
     const width = 120;
-    const ew = fontFace(FONT).m(ELLIPSIS);
-    const space = fontFace(FONT).m(" ");
+    const ew = faceOf(FONT).m(ELLIPSIS);
+    const space = faceOf(FONT).m(" ");
     let ours: string[] = [];
     const oursCold = timeCold(makeNames, (names) => {
       ours = Array.map(names, (name) => {
@@ -252,9 +253,9 @@ describe("pretrunc against the prior art", () => {
 
   it("cuts 5,000 paths in the middle of one line, keeping the file name", () => {
     const width = 160;
-    const ew = fontFace(FONT).m(ELLIPSIS);
-    const space = fontFace(FONT).m(" ");
-    const options = { at: "middle", keep: 0 } as const;
+    const ew = faceOf(FONT).m(ELLIPSIS);
+    const space = faceOf(FONT).m(" ");
+    const options = { at: "middle", tailMatch: 0 } as const;
     let ours: string[] = [];
     const oursCold = timeCold(makePaths, (paths) => {
       ours = Array.map(paths, (path) => {
@@ -298,18 +299,19 @@ describe("pretrunc against the prior art", () => {
 
   it("clamps 500 paragraphs to 3 lines", () => {
     const width = 260;
-    const ew = fontFace(FONT).m(ELLIPSIS);
-    const space = fontFace(FONT).m(" ");
+    const ew = faceOf(FONT).m(ELLIPSIS);
+    const space = faceOf(FONT).m(" ");
+    const three = { lines: 3 };
     let ours: string[] = [];
     const oursCold = timeCold(makeParagraphs, (paragraphs) => {
       ours = Array.map(paragraphs, (text) => {
         const p = prepareLines(text, FONT);
-        return toText(p, clamp(p, width, 3));
+        return toText(p, clamp(p, width, three));
       });
     });
     const prepared = Array.map(paragraphs, (text) => prepareLines(text, FONT));
     const oursWarm = time(() => {
-      for (const p of prepared) clamp(p, width, 3);
+      for (const p of prepared) clamp(p, width, three);
     });
     // Start and middle clamps search tail starts on the real layout; nothing in the prior
     // art does either, so they're pretrunc's alone.
@@ -318,13 +320,13 @@ describe("pretrunc against the prior art", () => {
       const coldMs = timeCold(makeParagraphs, (paragraphs) => {
         kept = Array.map(paragraphs, (text) => {
           const p = prepareLines(text, FONT);
-          return toText(p, clamp(p, width, 3, { at }));
+          return toText(p, clamp(p, width, { lines: 3, at }));
         });
       });
       const ready = Array.map(paragraphs, (text) => prepareLines(text, FONT));
-      for (const p of ready) clamp(p, width, 3, { at });
+      for (const p of ready) clamp(p, width, { lines: 3, at });
       const warmMs = time(() => {
-        for (const p of ready) clamp(p, width, 3, { at });
+        for (const p of ready) clamp(p, width, { lines: 3, at });
       });
       return {
         how: `pretrunc \`clamp\`, ${at}`,

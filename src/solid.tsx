@@ -20,7 +20,7 @@ import {
   truncated,
 } from "./cut.ts";
 import { fontOf, observe, onFonts, spacingOf } from "./dom.ts";
-import { fontFace, widthOf } from "./face.ts";
+import { faceOf, widthOf } from "./face.ts";
 
 export interface CutProps extends CutOptions {
   readonly text: string;
@@ -54,7 +54,7 @@ export interface Box {
   readonly fonts: Accessor<number>;
 }
 
-export interface FontScopeProps {
+export interface FontProviderProps {
   /** A CSS font shorthand that every cut inside is in, unless it's given its own. */
   readonly font?: string;
   /** CSS `letter-spacing` in px for every cut inside, unless it's given its own. */
@@ -62,7 +62,7 @@ export interface FontScopeProps {
   readonly children?: JSX.Element;
 }
 
-const Scope = createContext<FontScopeProps>({});
+const Fonts = createContext<FontProviderProps>({});
 
 /**
  * Gives every `Truncate`, `Clamp` and `createBox` inside the font and letter spacing
@@ -70,12 +70,12 @@ const Scope = createContext<FontScopeProps>({});
  * computed style when it mounts: 5,000 rows take 4 to 5 ms of style reads. Cuts follow
  * what's given, so give what the rows really render in.
  */
-export function FontScope(props: FontScopeProps): JSX.Element {
-  return <Scope value={props}>{props.children}</Scope>;
+export function FontProvider(props: FontProviderProps): JSX.Element {
+  return <Fonts value={props}>{props.children}</Fonts>;
 }
 
 /**
- * The width and font text is cut to: the ones given, then a `FontScope`'s, or an
+ * The width and font text is cut to: the ones given, then a `FontProvider`'s, or an
  * element's, observed. Whether to observe the width and read the font is decided once,
  * when it settles.
  */
@@ -84,9 +84,9 @@ export const createBox = (props: {
   readonly font?: string;
   readonly letterSpacing?: number;
 }): Box => {
-  const scope = useContext(Scope);
-  const given = () => props.font ?? scope.font;
-  const spacing = () => props.letterSpacing ?? scope.letterSpacing;
+  const provided = useContext(Fonts);
+  const given = () => props.font ?? provided.font;
+  const spacing = () => props.letterSpacing ?? provided.letterSpacing;
   let element: Element | undefined;
   const [observed, setObserved] = createSignal<number>();
   const [computed, setComputed] = createSignal<string>();
@@ -117,12 +117,22 @@ export const createBox = (props: {
   };
 };
 
-/**
- * The cut of `props.text` for an element's width and font, or for the ones given.
- * `apart` measures the ellipsis as a run of its own, for renderings that paint it in
- * an element of its own, so no kerning across it is counted.
- */
-export const createCut = (props: CutProps, apart = false): CutHandle => {
+export interface CreateCutProps extends CutProps {
+  /**
+   * The ellipsis is painted in an element of its own, so it is measured as a run of its
+   * own and no kerning across it counts. Read once.
+   */
+  readonly separateEllipsis?: boolean;
+}
+
+/** The cut of `props.text` for an element's width and font, or for the ones given. */
+export const createCut = (props: CreateCutProps): CutHandle =>
+  cutOf(
+    props,
+    untrack(() => props.separateEllipsis),
+  );
+
+const cutOf = (props: CutProps, apart: boolean | undefined): CutHandle => {
   const box = createBox(props);
   const font = box.font;
   const prepared = createMemo(() => {
@@ -143,7 +153,7 @@ export const createCut = (props: CutProps, apart = false): CutHandle => {
     return apart && typeof ellipsis === "string"
       ? cut(p, width, {
           ...props,
-          ellipsis: widthOf(fontFace(f), ellipsis) + box.spacing() * ellipsis.length,
+          ellipsis: widthOf(faceOf(f), ellipsis) + box.spacing() * ellipsis.length,
         })
       : cut(p, width, props);
   });
@@ -164,7 +174,7 @@ export interface TruncateProps extends CutProps {
 /** One line of text, cut to fit its box. */
 export function Truncate(props: TruncateProps): JSX.Element {
   const full = untrack(() => props.render === "full");
-  const handle = createCut(props, full);
+  const handle = cutOf(props, full);
   const ellipsis = () => props.ellipsis ?? "…";
   // Head, cut part, tail and, once cut, the whole text. Undefined until the first cut.
   const parts = createMemo(() => {

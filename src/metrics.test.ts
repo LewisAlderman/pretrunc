@@ -61,7 +61,7 @@ describe("metrics", () => {
         " ",
       );
       const p = prepareLines(words, FONT);
-      const c = clamp(p, 200, 3);
+      const c = clamp(p, 200, { lines: 3 });
       assert.isTrue(truncated(c));
       assert.isAtMost(layout(prepareWithSegments(toText(p, c), FONT), 200, 1).lineCount, 3);
     } finally {

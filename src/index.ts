@@ -1,4 +1,4 @@
-export { type Face, face, fontFace, forget } from "./face.ts";
+export { type Face, canvasFace, face, forget } from "./face.ts";
 export {
   type Cut,
   type CutOptions,

@@ -5,8 +5,8 @@ import {
   cut,
   type CutOptions,
   type Cut,
+  canvasFace,
   face,
-  fontFace,
   head,
   prepare,
   type Prepared,
@@ -14,6 +14,7 @@ import {
   toText,
   truncated,
 } from "./index.ts";
+import { faceOf } from "./face.ts";
 
 // Inter's latin file, so widths don't depend on the machine's fonts. Other scripts fall
 // back to system fonts, the same way in canvas and in the DOM.
@@ -138,7 +139,7 @@ describe("cut in a real engine", () => {
     "cuts Latin text in Inter from cached widths, measuring nothing once warm",
     [textOf(latin), at],
     ([s, where]) => {
-      const canvas = fontFace(FONT);
+      const canvas = faceOf(FONT);
       let calls = 0;
       const counted = face((text) => {
         calls++;
@@ -174,7 +175,7 @@ describe("cut in a real engine", () => {
   it("switches a path's middle cut once while its box is dragged wider: when the file name fits", () => {
     const p = prepare(
       "~/Projects/atlas/packages/renderer/src/text/layout/line-breaker.test.ts",
-      fontFace(FONT),
+      canvasFace(FONT),
       { protect: /[^/]+$/g },
     );
     const found = reversals(p, 100, 460, { at: "middle" });
@@ -188,7 +189,7 @@ describe("cut in a real engine", () => {
     "moves each side one way as the width grows",
     [textOf(latin), share, at, flag],
     ([s, q, where, trim]) => {
-      const p = prepare(s, fontFace(FONT));
+      const p = prepare(s, canvasFace(FONT));
       const from = widthFor(p, q);
       assert.deepStrictEqual(reversals(p, from, from + 20, { at: where, trim }), [], p.text);
     },

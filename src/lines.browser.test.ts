@@ -81,7 +81,7 @@ describe("clamp in a real engine", () => {
     [text, between(60, 400), between(1, 4), at, flag],
     ([s, width, n, where, words]) => {
       const p = prepareLines(s, FONT);
-      const c = clamp(p, width, n, { at: where, words });
+      const c = clamp(p, width, { lines: n, at: where, words });
       assert.isAtMost(
         wraps(toText(p, c), width),
         n,
@@ -119,7 +119,7 @@ describe("clamp in a real engine", () => {
     after: number,
   ) => {
     const p = prepareLines(s, FONT, { whiteSpace, letterSpacing: spacing });
-    const c = clamp(p, width, n, { at, words, ellipsis: e, after });
+    const c = clamp(p, width, { lines: n, at, words, ellipsis: e, after });
     block.style.width = `${width}px`;
     block.style.whiteSpace = whiteSpace;
     block.style.letterSpacing = `${spacing}px`;
@@ -166,11 +166,11 @@ describe("clamp in a real engine", () => {
     ([s, where]) => {
       const p = prepareLines(s, FONT);
       const widths = [180, 240, 320];
-      for (const width of widths) clamp(p, width, 2, { at: where });
+      for (const width of widths) clamp(p, width, { lines: 2, at: where });
       let calls = -1;
       const measured = vi.spyOn(OffscreenCanvasRenderingContext2D.prototype, "measureText");
       try {
-        for (const width of widths) clamp(p, width, 2, { at: where });
+        for (const width of widths) clamp(p, width, { lines: 2, at: where });
         calls = measured.mock.calls.length;
       } finally {
         measured.mockRestore();
@@ -193,7 +193,7 @@ describe("clamp in a real engine", () => {
         "Booked the cabin on the north shore for the offsite. Sleeps six, wood stove, no reception.";
       const late = '15px "Inter Lines Late", monospace';
       // Before its face loads, pretext measures the text in the fallback and keeps it.
-      clamp(prepareLines(text, late), 200, 2);
+      clamp(prepareLines(text, late), 200, { lines: 2 });
       const face = new FontFace("Inter Lines Late", `url(${inter})`);
       document.fonts.add(face);
       yield* Effect.promise(() => face.load());
@@ -201,8 +201,8 @@ describe("clamp in a real engine", () => {
       // The same font spelled differently, which nothing has measured: the web font's widths.
       const fresh = 'normal 15px "Inter Lines Late", monospace';
       assert.strictEqual(
-        clamp(prepareLines(text, late), 200, 2),
-        clamp(prepareLines(text, fresh), 200, 2),
+        clamp(prepareLines(text, late), 200, { lines: 2 }),
+        clamp(prepareLines(text, fresh), 200, { lines: 2 }),
       );
     }),
   );

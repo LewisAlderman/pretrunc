@@ -1,5 +1,16 @@
-/** Measures text in one font. Canvas by default; a metrics table can stand in (sprint-poker#54). */
+declare const opaque: unique symbol;
+
+/**
+ * Measures text in one font: `canvasFace`, `tableFace` from a metrics table
+ * (sprint-poker#54), or `face` over your own measure function. Its caches are
+ * pretrunc's, so the type shows none of them.
+ */
 export interface Face {
+  readonly [opaque]: true;
+}
+
+/** A face's measure function and caches, for pretrunc's own modules. */
+export interface FaceData extends Face {
   /** The width of a string in px, as one run of text. */
   readonly m: (text: string) => number;
   /** Widths already measured, by text: graphemes, grapheme pairs, words and ellipses. */
@@ -18,27 +29,30 @@ export interface Face {
   readonly e: Map<string, Float64Array>;
 }
 
-/** A face over your own measure function: a metrics table, node-canvas, a test double. */
-export const face = (measure: (text: string) => number): Face => ({
-  m: measure,
-  c: new Map(),
-  u: new Float64Array(768).fill(Number.NaN),
-  p: new Map(),
-  q: new Float64Array(16384).fill(Number.NaN),
-  e: new Map(),
-});
+const faceOver = (measure: (text: string) => number) =>
+  ({
+    m: measure,
+    c: new Map(),
+    u: new Float64Array(768).fill(Number.NaN),
+    p: new Map(),
+    q: new Float64Array(16384).fill(Number.NaN),
+    e: new Map(),
+  }) as FaceData;
+
+/** A face over your own measure function: node-canvas, a test double. */
+export const face: (measure: (text: string) => number) => Face = faceOver;
 
 let context: OffscreenCanvasRenderingContext2D | undefined;
 // Setting `font` parses it every time, and reading it back gives a normalised string
 // that differs from what was set, so the last font set is kept here instead.
 let current = "";
-const faces = new Map<string, Face>();
+const faces = new Map<string, FaceData>();
 
-/** The canvas face for a CSS font shorthand, shared by everything in that font. */
-export const fontFace = (font: string): Face => {
+/** The canvas face for a CSS font shorthand, for pretrunc's own modules. */
+export const faceOf = (font: string): FaceData => {
   let f = faces.get(font);
   if (!f) {
-    f = face((text) => {
+    f = faceOver((text) => {
       context ??= new OffscreenCanvas(0, 0).getContext("2d")!;
       if (current !== font) context.font = current = font;
       return context.measureText(text).width;
@@ -47,6 +61,9 @@ export const fontFace = (font: string): Face => {
   }
   return f;
 };
+
+/** The canvas face for a CSS font shorthand, shared by everything in that font. */
+export const canvasFace: (font: string) => Face = faceOf;
 
 /**
  * Drops the canvas face for `font`, or every one, and with `pretrunc/lines` loaded
@@ -66,7 +83,7 @@ const clears: Array<() => void> = [];
 export const alsoForget = (clear: () => void): void => void clears.push(clear);
 
 /** The width of `text` in `f`, measured once. */
-export const widthOf = (f: Face, text: string): number => {
+export const widthOf = (f: FaceData, text: string): number => {
   let w = f.c.get(text);
   if (w === undefined) f.c.set(text, (w = f.m(text)));
   return w;
@@ -74,13 +91,13 @@ export const widthOf = (f: Face, text: string): number => {
 
 // Most text is in characters below U+0300, one UTF-16 unit each, so their widths are
 // found by code: no string is built unless one has to be measured.
-export const unitOf = (f: Face, code: number): number => {
+export const unitOf = (f: FaceData, code: number): number => {
   let w = f.u[code]!;
   // NaN, not yet measured.
   if (w !== w) f.u[code] = w = f.m(String.fromCharCode(code));
   return w;
 };
-export const pairOf = (f: Face, first: number, second: number): number => {
+export const pairOf = (f: FaceData, first: number, second: number): number => {
   // ASCII pairs, most of most text, come from a flat table, the rest from a map.
   if (first < 128 && second < 128) {
     const key = first * 128 + second;

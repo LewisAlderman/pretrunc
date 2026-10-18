@@ -1,4 +1,4 @@
-import { type Face, fontFace, pairOf, unitOf, widthOf } from "./face.ts";
+import { type Face, type FaceData, faceOf, pairOf, unitOf, widthOf } from "./face.ts";
 
 /** Text measured once, ready to cut at any width. */
 export interface Prepared {
@@ -7,7 +7,7 @@ export interface Prepared {
 }
 
 interface Internal extends Prepared {
-  readonly f: Face;
+  readonly f: FaceData;
   /** Graphemes. */
   readonly n: number;
   /**
@@ -38,7 +38,7 @@ interface Internal extends Prepared {
    * long as the text, which in Chromium cost more than the regex.
    */
   readonly k: number[];
-  /** How many matches of the whole text come before the first pair, so `keep` counts from the start of it. */
+  /** How many matches of the whole text come before the first pair, so `tailMatch` counts from the start of it. */
   readonly m: number;
   /** Whether every UTF-16 unit is a grapheme below U+0300, so widths are found by code. */
   readonly u: boolean;
@@ -57,7 +57,7 @@ interface Internal extends Prepared {
 }
 
 export interface PrepareOptions {
-  /** Matches that stay whole or go whole, such as a file name: `/[^/]+$/g`. Needs the g flag. */
+  /** Matches that stay whole or go whole, such as a file name: `/[^/]+$/`. */
   readonly protect?: RegExp;
   /** CSS `letter-spacing` in px, which every grapheme carries after it. */
   readonly letterSpacing?: number;
@@ -68,12 +68,15 @@ export interface CutOptions {
   readonly at?: "start" | "middle" | "end";
   /** Middle: the head's share of the room. Default 0.5. */
   readonly ratio?: number;
-  /** Middle: keep the last `tail` graphemes, when they fit. */
-  readonly tail?: number;
-  /** Middle: the tail starts at protected match `keep` (from 0), when it fits. */
-  readonly keep?: number;
-  /** Back off to a word boundary within a quarter of what that side keeps (true), within this many px, or never (false). Default true. */
-  readonly words?: boolean | number;
+  /** Middle: the tail keeps this many graphemes, when they fit. */
+  readonly tailGraphemes?: number;
+  /** Middle: the tail starts at this protected match (from 0), when it fits. */
+  readonly tailMatch?: number;
+  /**
+   * Back off to a word boundary within a quarter of what that side keeps (true), within
+   * `within` px, or never (false). Default true.
+   */
+  readonly words?: boolean | { readonly within: number };
   /** Drop spaces and `,;:` beside the ellipsis. Default true. */
   readonly trim?: boolean;
   /** The ellipsis text, or the width in px of an element you render in its place. Default "…". */
@@ -81,8 +84,8 @@ export interface CutOptions {
 }
 
 /**
- * Kept text is `text.slice(0, head) + ellipsis + text.slice(tail)`, packed as
- * `head * 2 ** 26 + tail`: exact for text under 2 ** 26 UTF-16 units.
+ * Kept text is `text.slice(0, head(c)) + ellipsis + text.slice(tail(c))`. Two cuts are
+ * `===` when they keep the same head and tail, so a memo can compare them.
  */
 export type Cut = number & { readonly cut: unique symbol };
 
@@ -126,7 +129,7 @@ export const prepare = (
     /[\t\n\f\r]| {2}|^ | $/.test(text)
       ? text.replace(/[\t\n\f\r ]+/g, " ").replace(/^ | $/g, "")
       : text,
-    typeof font === "string" ? fontFace(font) : font,
+    typeof font === "string" ? faceOf(font) : (font as FaceData),
     options,
   );
 
@@ -142,11 +145,11 @@ export const prepareRange = (
   font: string,
   options: PrepareOptions,
   tab = 0,
-): Prepared => build(full.slice(from, to), fontFace(font), options, full, from, tab);
+): Prepared => build(full.slice(from, to), faceOf(font), options, full, from, tab);
 
 const build = (
   t: string,
-  f: Face,
+  f: FaceData,
   options: PrepareOptions,
   full = t,
   from = 0,
@@ -237,8 +240,12 @@ const build = (
   if (options.protect) {
     k = [];
     let before = 0;
-    // Counted over the whole text, so `keep` names the same match in any range of it.
-    for (const match of full.matchAll(options.protect)) {
+    // Counted over the whole text, so `tailMatch` names the same match in any range of
+    // it. `matchAll` throws on a pattern without the g flag, so one is given it.
+    const pattern = options.protect;
+    for (const match of full.matchAll(
+      pattern.global ? pattern : new RegExp(pattern, pattern.flags + "g"),
+    )) {
       const start = match.index - from;
       const end = start + match[0].length;
       if (start < t.length && end > 0) {
@@ -468,10 +475,11 @@ export const cutFrom = (
     h = fitHead(r);
   } else {
     let fixed = -1;
-    if (options.tail !== undefined) fixed = Math.max(0, N - options.tail);
-    else if (options.keep !== undefined) {
-      // The first grapheme that starts inside match `keep`, or none.
-      const j = 2 * (options.keep - p.m);
+    const { tailGraphemes, tailMatch } = options;
+    if (tailGraphemes !== undefined) fixed = Math.max(0, N - tailGraphemes);
+    else if (tailMatch !== undefined) {
+      // The first grapheme that starts inside match `tailMatch`, or none.
+      const j = 2 * (tailMatch - p.m);
       fixed = 0;
       while (fixed < N && !(j >= 0 && b[fixed]! >= k[j]! && b[fixed]! < k[j + 1]!)) fixed++;
     }
@@ -509,11 +517,12 @@ export const cutFrom = (
     // A quarter of what the side keeps, not of the room: a limit that grew with the width
     // while the cut point held still would cross the distance to a break mid-grapheme and
     // snap the side back a word, then forward again at the next grapheme.
-    let limit = words === true ? headWidth(h) / 4 : words;
+    let limit = words === true ? headWidth(h) / 4 : words.within;
     let i = h;
     while (i > O && !isBreak(i) && w[h]! - w[i - 1]! <= limit) i--;
     if (isBreak(i)) h = i;
-    // A tail fixed by `tail`, `keep` or a protected match already starts where it should.
+    // A tail fixed by `tailGraphemes`, `tailMatch` or a protected match already starts
+    // where it should.
     if (words === true) limit = tailWidth(t) / 4;
     i = t;
     while (!pinned && i < N && !isBreak(i) && w[i + 1]! - w[t]! <= limit) i++;

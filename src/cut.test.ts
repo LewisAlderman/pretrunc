@@ -287,7 +287,7 @@ describe("cut examples", () => {
 
   it("keeps a path's file name in the middle", () => {
     const path = p("~/Projects/atlas/src/layout.ts", /[^/]+$/g);
-    const c = cut(path, 140, { at: "middle", keep: 0 });
+    const c = cut(path, 140, { at: "middle", tailMatch: 0 });
     assert.isTrue(toText(path, c).endsWith("…layout.ts"));
   });
 
@@ -304,9 +304,23 @@ describe("cut examples", () => {
     );
   });
 
+  it("protects matches of a pattern without the g flag", () => {
+    const path = p("~/Projects/atlas/src/layout.ts", /[^/]+$/);
+    const c = cut(path, 140, { at: "middle", tailMatch: 0 });
+    assert.isTrue(toText(path, c).endsWith("…layout.ts"));
+  });
+
+  it("backs off to a word within the px given", () => {
+    // "aaaa aa…" is 58 px; backing off to the space drops 14 px, past a quarter of the head.
+    const text = p("aaaa aaaaaaaa");
+    assert.strictEqual(toText(text, cut(text, 59)), "aaaa aa…");
+    assert.strictEqual(toText(text, cut(text, 59, { words: { within: 14 } })), "aaaa…");
+    assert.strictEqual(toText(text, cut(text, 59, { words: { within: 13 } })), "aaaa aa…");
+  });
+
   it("keeps the last graphemes asked for", () => {
     const id = p("aaaaaaaaaaaaaaaaaaaa1234");
-    assert.isTrue(toText(id, cut(id, 80, { at: "middle", tail: 4 })).endsWith("…1234"));
+    assert.isTrue(toText(id, cut(id, 80, { at: "middle", tailGraphemes: 4 })).endsWith("…1234"));
   });
 
   it("counts the kerning beside the ellipsis", () => {

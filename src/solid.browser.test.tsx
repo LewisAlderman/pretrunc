@@ -5,7 +5,7 @@ import { afterEach, assert, beforeAll, describe, expect, it } from "@effect/vite
 import { createSignal } from "solid-js";
 import { vi } from "vite-plus/test";
 import { page } from "vite-plus/test/browser/context";
-import { FontScope, Truncate } from "./solid.tsx";
+import { FontProvider, Truncate } from "./solid.tsx";
 
 const FAMILY = "Inter Adapter";
 const NAME = "Alexandra Richardson-Featherstonehaugh";
@@ -60,7 +60,7 @@ describe("Truncate", () => {
     assert.isAtMost(laidOut(name.element()), 140);
   });
 
-  it("reads its element's style once, and not at all in a FontScope, cutting to the scope's font", async () => {
+  it("reads its element's style once, and not at all in a FontProvider, cutting to the provider's font", async () => {
     const original = window.getComputedStyle;
     let reads = 0;
     window.getComputedStyle = (...args) => {
@@ -68,13 +68,13 @@ describe("Truncate", () => {
       return original.apply(window, args);
     };
     try {
-      // The scope's font is twice the size the row renders in, so its cut keeps less.
+      // The provider's font is twice the size the row renders in, so its cut keeps less.
       render(() => (
         <Box width={240}>
           <Truncate text={NAME} words={false} class="own" />
-          <FontScope font={`32px "${FAMILY}"`} letterSpacing={0}>
-            <Truncate text={NAME} words={false} class="scoped" />
-          </FontScope>
+          <FontProvider font={`32px "${FAMILY}"`} letterSpacing={0}>
+            <Truncate text={NAME} words={false} class="provided" />
+          </FontProvider>
         </Box>
       ));
       await expect.element(page.getByTitle(NAME).nth(1)).toBeInTheDocument();
@@ -83,8 +83,8 @@ describe("Truncate", () => {
       window.getComputedStyle = original;
     }
     const own = document.querySelector(".own")!.textContent!;
-    const scoped = document.querySelector(".scoped")!.textContent!;
-    assert.isBelow(scoped.length, own.length * 0.7, JSON.stringify([own, scoped]));
+    const provided = document.querySelector(".provided")!.textContent!;
+    assert.isBelow(provided.length, own.length * 0.7, JSON.stringify([own, provided]));
   });
 
   it("cuts again on resize without measuring, the whole text painted", async () => {

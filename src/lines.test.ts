@@ -3,7 +3,7 @@ import { measureRichInlineStats, prepareRichInline } from "@chenglou/pretext/ric
 import { assert, describe, it } from "@effect/vitest";
 import { Arbitrary, Array, Schema } from "effect";
 import { head, tail, toText, truncated } from "./cut.ts";
-import { clamp, lessFits, prepareLines } from "./lines.ts";
+import { clamp, prepareLines, roomAfter } from "./lines.ts";
 
 // pretext and the core both measure through OffscreenCanvas, so one fake canvas with
 // known widths stands in for the browser in Node: each code unit 7 px, capitals 10.
@@ -48,7 +48,7 @@ describe("clamp", () => {
     [text, between(40, 300), between(1, 5), at, flag],
     ([s, width, n, where, words]) => {
       const p = prepareLines(s, FONT);
-      const c = clamp(p, width, n, { at: where, words });
+      const c = clamp(p, width, { lines: n, at: where, words });
       assert.isAtMost(lineCount(toText(p, c), width), n, JSON.stringify([p.text, width, n, where]));
     },
     runs,
@@ -59,7 +59,7 @@ describe("clamp", () => {
     [text, between(40, 300), between(1, 5), at],
     ([s, width, n, where]) => {
       const p = prepareLines(s, FONT);
-      const c = clamp(p, width, n, { at: where });
+      const c = clamp(p, width, { lines: n, at: where });
       assert.strictEqual(truncated(c), lineCount(p.text, width) > n);
     },
     runs,
@@ -70,7 +70,7 @@ describe("clamp", () => {
     [text, between(40, 300), between(1, 5)],
     ([s, width, n]) => {
       const p = prepareLines(s, FONT);
-      const c = clamp(p, width, n, { words: false, trim: false });
+      const c = clamp(p, width, { lines: n, words: false, trim: false });
       if (!truncated(c)) return;
       const input = JSON.stringify([p.text, width, n, toText(p, c)]);
       assert.isAtLeast(lineCount(p.text.slice(0, head(c)), width), n - 1, input);
@@ -85,7 +85,7 @@ describe("clamp", () => {
     [text, between(40, 300), between(1, 5), Arbitrary.schema(Schema.Literals(["start"]))],
     ([s, width, n, where]) => {
       const p = prepareLines(s, FONT);
-      const c = clamp(p, width, n, { at: where, words: false, trim: false });
+      const c = clamp(p, width, { lines: n, at: where, words: false, trim: false });
       if (!truncated(c) || tail(c) <= head(c) + 1) return;
       const earlier = p.text.slice(0, head(c)) + "…" + p.text.slice(tail(c) - 1);
       assert.isAbove(
@@ -113,8 +113,8 @@ describe("clamp", () => {
         const options = { at: where, words, trim };
         const fresh = prepareLines(s, FONT);
         assert.strictEqual(
-          clamp(p, width, n, options),
-          clamp(fresh, width, n, options),
+          clamp(p, width, { ...options, lines: n }),
+          clamp(fresh, width, { ...options, lines: n }),
           JSON.stringify([s, calls]),
         );
       }
@@ -127,7 +127,7 @@ describe("clamp", () => {
     [text, between(40, 300), between(1, 5)],
     ([s, width, n]) => {
       const p = prepareLines(s, FONT);
-      const c = clamp(p, width, n, { at: "middle" });
+      const c = clamp(p, width, { lines: n, at: "middle" });
       assert.isAtMost(head(c), tail(c));
     },
     runs,
@@ -151,8 +151,8 @@ describe("clamp", () => {
     ],
     ([s, width, step, n, where, words]) => {
       const p = prepareLines(s, FONT);
-      const narrow = clamp(p, width, n, { at: where, words });
-      const wide = clamp(p, width + step, n, { at: where, words });
+      const narrow = clamp(p, width, { lines: n, at: where, words });
+      const wide = clamp(p, width + step, { lines: n, at: where, words });
       if (!truncated(wide)) return;
       const input = JSON.stringify([p.text, width, step, n, where, words]);
       if (where === "middle") {
@@ -175,19 +175,19 @@ describe("clamp examples", () => {
   it("keeps a protected match whole when it runs on past a hard break", () => {
     // The last line's cut sees only "ab", up to the break; the match goes on to "cd".
     const p = prepareLines("ab\ncd ef", FONT, { whiteSpace: "pre-wrap", protect: /[a-d\n]+/g });
-    assert.strictEqual(toText(p, clamp(p, 100, 1, { words: false })), "…");
+    assert.strictEqual(toText(p, clamp(p, 100, { lines: 1, words: false })), "…");
   });
 
   it("keeps a tail when the ellipsis takes a line of its own (sprint-poker#87)", () => {
     const p = prepareLines("x/y Supercalifragilistic", FONT);
     // At 42 px "…" ends its line, so the word start can't follow it; graphemes can.
-    assert.strictEqual(toText(p, clamp(p, 42, 4, { at: "start" })), "…percalifragilistic");
+    assert.strictEqual(toText(p, clamp(p, 42, { lines: 4, at: "start" })), "…percalifragilistic");
   });
 
   it("keeps no less in the middle at a wider width, a long word at the junction (sprint-poker#90)", () => {
     const p = prepareLines("Ada a re-entry Supercalifragilistic , lot Ada re-entry", FONT);
     const kept = (width: number) => {
-      const c = clamp(p, width, 5, { at: "middle", words: false });
+      const c = clamp(p, width, { lines: 5, at: "middle", words: false });
       return head(c) + p.text.length - tail(c);
     };
     // At 91 px the head gains "c" and the tail loses "frag".
@@ -216,7 +216,7 @@ describe("clamp with every option", () => {
     [spaced, between(40, 300), between(1, 5), at, flag, whiteSpace, spacing, ellipsis, after],
     ([s, width, n, where, words, ws, by, e, room]) => {
       const p = prepareLines(s, FONT, { whiteSpace: ws, letterSpacing: by });
-      const c = clamp(p, width, n, { at: where, words, ellipsis: e, after: room });
+      const c = clamp(p, width, { lines: n, at: where, words, ellipsis: e, after: room });
       const item = (text: string) => ({ text, font: FONT, letterSpacing: by });
       // A clamp that cuts nothing shows no "more", so nothing comes after it.
       const items = truncated(c)
@@ -238,11 +238,9 @@ describe("clamp with every option", () => {
   );
 });
 
-describe("lessFits", () => {
-  it("says whether a link fits after the last line", () => {
+describe("roomAfter", () => {
+  it("gives the room after the last line", () => {
     // "Ada lot" is 49 px, one line at 60 px, leaving 11 px.
-    const p = prepareLines("Ada lot", FONT);
-    assert.isTrue(lessFits(p, 60, 11));
-    assert.isFalse(lessFits(p, 60, 12));
+    assert.strictEqual(roomAfter(prepareLines("Ada lot", FONT), 60), 11);
   });
 });

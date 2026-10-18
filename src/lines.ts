@@ -23,7 +23,7 @@ import {
   type Prepared,
   prepareRange,
 } from "./cut.ts";
-import { alsoForget, fontFace, widthOf } from "./face.ts";
+import { alsoForget, faceOf, widthOf } from "./face.ts";
 
 // pretext keeps its own widths by font, so a `forget` after a web font loads drops them
 // too: kept, they are the fallback's, and a clamp can fit text in fewer lines than it
@@ -31,12 +31,12 @@ import { alsoForget, fontFace, widthOf } from "./face.ts";
 alsoForget(clearCache);
 
 /** Text prepared for laying out in lines with pretext. */
-export interface Lines {
+export interface PreparedLines {
   /** The text as its white space mode paints it; every offset refers to this string. */
   readonly text: string;
 }
 
-export interface LinesOptions {
+export interface PrepareLinesOptions {
   /** CSS `white-space`. Default "normal". */
   readonly whiteSpace?: "normal" | "pre-wrap";
   readonly wordBreak?: "normal" | "keep-all";
@@ -47,16 +47,18 @@ export interface LinesOptions {
 }
 
 export interface ClampOptions extends CutOptions {
+  /** How many lines to keep. */
+  readonly lines: number;
   /** Room in px to keep free after the text's end, for an element such as a "more" link. */
   readonly after?: number;
 }
 
-interface Internal extends Lines {
+interface Internal extends PreparedLines {
   readonly l: PreparedTextWithSegments;
   readonly font: string;
   /** Each segment's start offset, then the text's length. */
   readonly s: number[];
-  readonly o: LinesOptions;
+  readonly o: PrepareLinesOptions;
   /** pretext's options, as `prepareWithSegments` takes them. */
   readonly q: PretextOptions;
   /** A tab's width at most, in `pre-wrap`: eight spaces and half a `ch`. 0 in `normal`. */
@@ -120,7 +122,11 @@ const startsOf = (p: Internal, graphemes: boolean): Starts => {
   return graphemes ? (p.d = starts) : (p.c = starts);
 };
 
-export const prepareLines = (text: string, font: string, options: LinesOptions = {}): Lines => {
+export const prepareLines = (
+  text: string,
+  font: string,
+  options: PrepareLinesOptions = {},
+): PreparedLines => {
   const q: PretextOptions = {
     ...(options.whiteSpace ? { whiteSpace: options.whiteSpace } : {}),
     ...(options.wordBreak ? { wordBreak: options.wordBreak } : {}),
@@ -135,7 +141,7 @@ export const prepareLines = (text: string, font: string, options: LinesOptions =
   // A tab advances to the next stop, eight spaces apart, unless that is under half a `ch`
   // away, when Firefox and WebKit take the stop after, as CSS Text says: so up to eight
   // spaces and half a "0".
-  const face = fontFace(font);
+  const face = faceOf(font);
   const tab =
     options.whiteSpace === "pre-wrap"
       ? 8 * (widthOf(face, " ") + (options.letterSpacing ?? 0)) + widthOf(face, "0") / 2
@@ -155,33 +161,28 @@ export const prepareLines = (text: string, font: string, options: LinesOptions =
   return p;
 };
 
-/** Whether an element `room` px wide fits after the last line, as a "less" link would. */
-export const lessFits = (lines: Lines, width: number, room: number): boolean => {
+/** The room in px after the last line of the whole text, where a "less" link would go. */
+export const roomAfter = (lines: PreparedLines, width: number): number => {
   let last = 0;
   walkLineRanges((lines as Internal).l, width, (line) => (last = line.width));
-  return last + room <= width;
+  return width - last;
 };
 
 /**
- * Cuts text to `count` lines of `width` px, with the ellipsis at the end of the last
- * line, the start of the first, or inside a middle line (`ratio` of the way through).
+ * Cuts text to `options.lines` lines of `width` px, with the ellipsis at the end of the
+ * last line, the start of the first, or inside a middle line (`ratio` of the way through).
  */
-export const clamp = (
-  lines: Lines,
-  width: number,
-  count: number,
-  options: ClampOptions = {},
-): Cut => {
+export const clamp = (lines: PreparedLines, width: number, options: ClampOptions): Cut => {
   const p = lines as Internal;
   const { text, l, font, s, o } = p;
   const { at = "end", ratio = 0.5, words = true, trim = true, ellipsis = "…", after = 0 } = options;
-  const n = Math.max(1, count);
+  const n = Math.max(1, options.lines);
   const length = text.length;
   const spacing = o.letterSpacing ?? 0;
   const ew =
     typeof ellipsis === "number"
       ? ellipsis
-      : widthOf(fontFace(font), ellipsis) + spacing * ellipsis.length;
+      : widthOf(faceOf(font), ellipsis) + spacing * ellipsis.length;
   const offset = (c: LayoutCursor) =>
     s[c.segmentIndex]! +
     (c.graphemeIndex
@@ -241,7 +242,7 @@ export const clamp = (
   // take, held to the text on both sides.
   const tabbed = p.tab > 0 && text.includes("\t");
   const nbsp = "\u00a0".repeat(
-    tabbed ? Math.ceil(p.tab / (widthOf(fontFace(font), "\u00a0") + spacing)) : 0,
+    tabbed ? Math.ceil(p.tab / (widthOf(faceOf(font), "\u00a0") + spacing)) : 0,
   );
   const { whiteSpace, wordBreak } = p.q;
   const layoutOptions = {

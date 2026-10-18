@@ -2,7 +2,8 @@ import interFile from "@fontsource-variable/inter/files/inter-latin-wght-normal.
 import { assert, beforeAll, describe, it } from "@effect/vitest";
 import { Arbitrary, Array, Schema } from "effect";
 import inter from "../fixtures/inter-latin.ts";
-import { cut, fontFace, head, prepare, tail, toText, truncated } from "./index.ts";
+import { faceOf } from "./face.ts";
+import { cut, head, prepare, tail, toText, truncated } from "./index.ts";
 import { measure, tableFace } from "./metrics.ts";
 
 // The table is read from the same file the page loads, so a cut made from the table, as
@@ -65,7 +66,7 @@ describe("metrics in a real engine", () => {
     ([s]) => {
       if (linuxChromium) return;
       const table = measure(inter, 15, s);
-      const canvas = fontFace(FONT).m(s);
+      const canvas = faceOf(FONT).m(s);
       assert.isAtLeast(table, canvas - 0.05, JSON.stringify(s));
       assert.isAtMost(table, canvas * 1.1 + 0.05, JSON.stringify(s));
     },
@@ -89,7 +90,7 @@ describe("metrics in a real engine", () => {
   (linuxChromium ? it.fails : it)(
     "keeps the table no narrower than Chromium on Linux too (#3)",
     () => {
-      assert.isAtLeast(measure(inter, 15, "12:30"), fontFace(FONT).m("12:30") - 0.05);
+      assert.isAtLeast(measure(inter, 15, "12:30"), faceOf(FONT).m("12:30") - 0.05);
       const p = prepare("caféline-breaker", tableFace(inter, 15));
       assert.isAtMost(paints(toText(p, cut(p, 99.5, { at: "start" }))), 99.5);
     },

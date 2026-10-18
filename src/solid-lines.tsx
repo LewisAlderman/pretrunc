@@ -5,7 +5,7 @@ import { observe } from "./dom.ts";
 import { clamp, prepareLines } from "./lines.ts";
 import { createBox } from "./solid.tsx";
 
-export interface ClampProps extends Omit<CutOptions, "tail" | "keep"> {
+export interface ClampProps extends Omit<CutOptions, "tailGraphemes" | "tailMatch"> {
   readonly text: string;
   /** How many lines to keep. */
   readonly lines: number;
@@ -57,7 +57,7 @@ export function Clamp(props: ClampProps): JSX.Element {
     const font = box.font();
     if (p === undefined || width === undefined || font === undefined) return undefined;
     // `after` is an element here and a width to `clamp`, so it's always given as one.
-    return clamp(p, width, props.lines, {
+    return clamp(p, width, {
       ...props,
       after: props.after === undefined ? 0 : afterWidth(),
     });
