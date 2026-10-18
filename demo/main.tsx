@@ -325,11 +325,17 @@ function Gallery() {
         </Frame>
         <Frame
           title="Keeping the file name"
-          note="The tail starts at a protected match, which stays whole or goes whole."
+          note="The tail starts at the file name and its slash, which stay whole or go whole, and the head backs off to the last folder that fits."
           snippet="file-name"
         >
           <div class="strip">
-            <Truncate text={PATH} at="middle" protect={/[^/]+$/g} tailMatch={0} />
+            <Truncate
+              text={PATH}
+              at="middle"
+              protect={/\/[^/]+$/}
+              tailMatch={0}
+              words={{ within: Infinity }}
+            />
           </div>
         </Frame>
         <Frame
