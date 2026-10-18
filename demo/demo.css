@@ -323,6 +323,110 @@ textarea {
   cursor: pointer;
 }
 
+/* The layout frames: rows with fixed parts beside one that takes the rest. */
+.row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.grow {
+  flex: 1 1 0;
+}
+
+.files {
+  display: grid;
+  gap: 4px;
+  padding: 6px 8px;
+  list-style: none;
+}
+
+.icon {
+  flex: none;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: var(--mat);
+  color: var(--paper);
+  font: 600 10px/16px var(--code);
+}
+
+.size,
+.thread time {
+  flex: none;
+  color: var(--ink-soft);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.people {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  table-layout: fixed;
+}
+
+.people td {
+  padding: 3px 8px;
+  border-bottom: 1px solid #dfe7e4;
+}
+
+.people td:first-child {
+  width: 42%;
+}
+
+.thread {
+  padding: 6px 8px;
+}
+
+.thread + .thread {
+  border-top: 1px solid #dfe7e4;
+}
+
+.thread .name {
+  font-weight: 600;
+}
+
+.preview {
+  color: var(--ink-soft);
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.stack {
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+}
+
+.topics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px;
+}
+
+.topic {
+  padding: 1px 8px;
+  border-radius: 10px;
+  background: #e3ece9;
+  font-size: 13px;
+}
+
+/* An ellipsis as a button, as wide as the room createCut was given for it. */
+.gap {
+  display: inline-block;
+  width: 20px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: var(--blade);
+  color: var(--ink);
+  font-size: inherit;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
 canvas {
   display: block;
   width: 100%;

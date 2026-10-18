@@ -1,5 +1,5 @@
-// pretrunc's demo: every prop in a resizable frame, a playground with a control for each,
-// and a stress table. `vp run demo` serves it with hot reload. Keep it in step
+// pretrunc's demo: every prop in a resizable frame, the components inside the layouts they
+// land in, a playground with a control for each, and a stress table. `vp run demo` serves it with hot reload. Keep it in step
 // with the API: a new option gets a control here and, if it changes what people see, an
 // example.
 import "@fontsource-variable/inter";
@@ -385,6 +385,215 @@ function Gallery() {
           code={`import inter from "./inter.ts"; // vp run metrics\nconst p = prepare(story, tableFace(inter, 16));`}
         >
           <NoCanvas />
+        </Frame>
+      </div>
+    </section>
+  );
+}
+
+const FILES = [
+  { path: PATH, size: "2.4 KB" },
+  { path: "~/Projects/atlas/README.md", size: "6 KB" },
+  {
+    path: "~/Projects/atlas/packages/renderer/src/text/shaping/harfbuzz-fallback.ts",
+    size: "18 KB",
+  },
+];
+const CONTACTS = [
+  { name: NAME, email: "alexandra.richardson-featherstonehaugh@example.com" },
+  { name: "Chen Nakamura", email: "chen@nakamura.dev" },
+  { name: "Bartholomew Okonkwo-Castellanos", email: "bartholomew@okonkwo-castellanos.org" },
+];
+const THREADS = [
+  {
+    name: NAME,
+    time: "09:41",
+    last: "Booked the cabin on the north shore for the offsite. Sleeps six, wood stove, no reception. Bring boots: the path down to the water is steep.",
+  },
+  { name: "Chen Nakamura", time: "Tue", last: "Ferry's at 7:40, I'll get the tickets." },
+  {
+    name: "Wilhelmina van der Berg",
+    time: "Mon",
+    last: "Can someone check the rowing boat still has both oars? Last time one was floating by the jetty and we spent an hour fishing it out.",
+  },
+];
+const TOPICS = [
+  "typescript",
+  "accessibility and inclusive design",
+  "kerning",
+  "css",
+  "frontend infrastructure",
+];
+
+function Retitle() {
+  const [title, setTitle] = createSignal(
+    "Offsite planning: north shore, ferry times, who brings boots",
+  );
+  return (
+    <div class="strip stack">
+      <input
+        type="text"
+        aria-label="Title"
+        value={title()}
+        onInput={(e) => setTitle(e.currentTarget.value)}
+      />
+      <Truncate text={title()} at="middle" />
+    </div>
+  );
+}
+
+// A middle cut whose ellipsis is a button that shows the whole path: the button has a fixed
+// width, given to createCut as the ellipsis.
+function OpenablePath() {
+  const [open, setOpen] = createSignal(false);
+  const handle = createCut({ text: PATH, at: "middle", ellipsis: 20 });
+  const parts = createMemo(() => {
+    const p = handle.prepared();
+    const c = handle.cut();
+    if (p === undefined || c === undefined || !truncated(c)) return undefined;
+    return [p.text.slice(0, head(c)), p.text.slice(tail(c))] as const;
+  });
+  return (
+    <div
+      ref={handle.ref}
+      class="strip"
+      style={
+        open() ? { "overflow-wrap": "anywhere" } : { "white-space": "nowrap", overflow: "hidden" }
+      }
+    >
+      <Show when={!open() && parts()} fallback={PATH}>
+        {(kept) => (
+          <>
+            {kept()[0]}
+            <button
+              type="button"
+              class="gap"
+              aria-label="Show the whole path"
+              onClick={() => setOpen(true)}
+            >
+              …
+            </button>
+            {kept()[1]}
+          </>
+        )}
+      </Show>
+      <Show when={open()}>
+        <button type="button" class="more" onClick={() => setOpen(false)}>
+          less
+        </button>
+      </Show>
+    </div>
+  );
+}
+
+function Layouts() {
+  return (
+    <section>
+      <h2>In a layout</h2>
+      <p>
+        The components where they usually end up: beside other elements, in table cells, in lists
+        and in boxes sized by their own text. Each frame's code is the JSX it renders.
+      </p>
+      <div class="gallery">
+        <Frame
+          title="Beside an icon and a size"
+          note="flex: 1 gives the path the room the row has left. A flex item with overflow: hidden can shrink below its text, so it needs no min-width: 0."
+          code={`<For each={files}>\n  {(file) => (\n    <li class="row">\n      <span class="icon">TS</span>\n      <Truncate\n        class="grow" // flex: 1\n        text={file.path}\n        at="middle"\n        protect={/[^/]+$/g}\n        tailMatch={0}\n      />\n      <span class="size">{file.size}</span>\n    </li>\n  )}\n</For>`}
+        >
+          <ul class="strip files">
+            <For each={FILES}>
+              {(file) => (
+                <li class="row">
+                  <span class="icon">TS</span>
+                  <Truncate
+                    class="grow"
+                    text={file.path}
+                    at="middle"
+                    protect={/[^/]+$/g}
+                    tailMatch={0}
+                  />
+                  <span class="size">{file.size}</span>
+                </li>
+              )}
+            </For>
+          </ul>
+        </Frame>
+        <Frame
+          title="In table cells"
+          note="With table-layout: fixed, the table sets each column's width, not the text in it, so each cell has a width to cut to. The email keeps its domain."
+          code={`<table style="table-layout: fixed; width: 100%">\n  <For each={contacts}>\n    {(c) => (\n      <tr>\n        <td><Truncate text={c.name} /></td>\n        <td>\n          <Truncate\n            text={c.email}\n            at="middle"\n            protect={/@.+$/g}\n            tailMatch={0}\n          />\n        </td>\n      </tr>\n    )}\n  </For>\n</table>`}
+        >
+          <div class="strip">
+            <table class="people">
+              <tbody>
+                <For each={CONTACTS}>
+                  {(contact) => (
+                    <tr>
+                      <td>
+                        <Truncate text={contact.name} />
+                      </td>
+                      <td>
+                        <Truncate
+                          text={contact.email}
+                          at="middle"
+                          protect={/@.+$/g}
+                          tailMatch={0}
+                        />
+                      </td>
+                    </tr>
+                  )}
+                </For>
+              </tbody>
+            </table>
+          </div>
+        </Frame>
+        <Frame
+          title="A list of conversations"
+          note="One line for the name beside the time, two for the last message. Each reads the font its own element renders in."
+          code={`<For each={threads}>\n  {(t) => (\n    <article class="thread">\n      <header class="row">\n        <Truncate class="grow name" text={t.name} />\n        <time>{t.time}</time>\n      </header>\n      <Clamp class="preview" text={t.last} lines={2} />\n    </article>\n  )}\n</For>`}
+        >
+          <div class="strip">
+            <For each={THREADS}>
+              {(thread) => (
+                <article class="thread">
+                  <header class="row">
+                    <Truncate class="grow name" text={thread.name} />
+                    <time>{thread.time}</time>
+                  </header>
+                  <Clamp class="preview" text={thread.last} lines={2} />
+                </article>
+              )}
+            </For>
+          </div>
+        </Frame>
+        <Frame
+          title="Text from a signal"
+          note="Type in the field: text is reactive, and each change is prepared and cut again."
+          code={`const [title, setTitle] = createSignal("Offsite planning: …");\n\n<input\n  value={title()}\n  onInput={(e) => setTitle(e.currentTarget.value)}\n/>\n<Truncate text={title()} at="middle" />`}
+        >
+          <Retitle />
+        </Frame>
+        <Frame
+          title="Chips sized by their text"
+          note="A box as wide as its text has no room to observe, so give the width. Each chip stops at 96 px and shrinks to a short topic."
+          code={`<For each={topics}>\n  {(topic) => (\n    <span class="topic">\n      <Truncate text={topic} width={96} />\n    </span>\n  )}\n</For>`}
+        >
+          <div class="strip topics">
+            <For each={TOPICS}>
+              {(topic) => (
+                <span class="topic">
+                  <Truncate text={topic} width={96} />
+                </span>
+              )}
+            </For>
+          </div>
+        </Frame>
+        <Frame
+          title="An ellipsis you can open"
+          note="createCut gives the cut and leaves the markup to you. Here the ellipsis is a 20 px button that shows the whole path."
+          code={`const handle = createCut({ text: path, at: "middle", ellipsis: 20 });\n// head(c) and tail(c) of handle.cut() give the two ends\n\n<div ref={handle.ref}>\n  {start}\n  <button class="gap" onClick={() => setOpen(true)}>…</button>\n  {end}\n</div>`}
+        >
+          <OpenablePath />
         </Frame>
       </div>
     </section>
@@ -944,6 +1153,7 @@ function App() {
       </header>
       <Playground />
       <Gallery />
+      <Layouts />
       <Stress />
     </main>
   );
