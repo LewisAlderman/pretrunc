@@ -66,7 +66,7 @@ The package exports a `solid` condition pointing at its TypeScript source, which
 
 ## No canvas
 
-`pretrunc/metrics` measures from a table of a font's advances and kerning, for server rendering or a worker: `vp run metrics <font file> <out.ts> [family]` writes one from a font file. A table never measures narrower than the browser, so its cuts never overflow, but can be up to 10% wider, so they may land a little early.
+`pretrunc/metrics` measures from a table of a font's advances and kerning, for server rendering or a worker: `vp run metrics <font file> <out.ts> [family]` writes one from a font file. A table never measures narrower than the browser, so its cuts never overflow, but can be up to 10% wider, so they may land a little early. Give text cut from a table `text-rendering: geometricPrecision`: without it, Chromium on Linux lays each glyph on a whole pixel, wider than any table can know.
 
 ## Developing
 

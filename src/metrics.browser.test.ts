@@ -2,7 +2,6 @@ import interFile from "@fontsource-variable/inter/files/inter-latin-wght-normal.
 import { assert, beforeAll, describe, it } from "@effect/vitest";
 import { Arbitrary, Array, Schema } from "effect";
 import inter from "../fixtures/inter-latin.ts";
-import { faceOf } from "./face.ts";
 import { cut, head, prepare, tail, toText, truncated } from "./index.ts";
 import { measure, tableFace } from "./metrics.ts";
 
@@ -10,10 +9,18 @@ import { measure, tableFace } from "./metrics.ts";
 // a server would make it, has to fit the text the browser lays out.
 const FONT = '15px "Inter Table"';
 
+// Chromium on Linux lays each glyph on a whole pixel unless the text asks for geometric
+// precision, so a table-made cut needs it there (#3). These checks ask for it in every
+// engine, in layout and in canvas.
+const canvas = new OffscreenCanvas(0, 0).getContext("2d")!;
+canvas.font = FONT;
+canvas.textRendering = "geometricPrecision";
+const measured = (text: string) => canvas.measureText(text).width;
+
 let span: HTMLSpanElement;
 beforeAll(() => {
   span = document.createElement("span");
-  span.style.cssText = `font: ${FONT}; white-space: pre`;
+  span.style.cssText = `font: ${FONT}; white-space: pre; text-rendering: geometricPrecision`;
   document.body.append(span);
   const font = new FontFace("Inter Table", `url(${interFile})`);
   document.fonts.add(font);
@@ -63,9 +70,9 @@ describe("metrics in a real engine", () => {
     [latin],
     ([s]) => {
       const table = measure(inter, 15, s);
-      const canvas = faceOf(FONT).m(s);
-      assert.isAtLeast(table, canvas - 0.001, JSON.stringify(s));
-      assert.isAtMost(table, canvas * 1.1 + 0.05, JSON.stringify(s));
+      const engine = measured(s);
+      assert.isAtLeast(table, engine - 0.001, JSON.stringify(s));
+      assert.isAtMost(table, engine * 1.1 + 0.05, JSON.stringify(s));
     },
     { arbitrary: { runs: 300 } },
   );
@@ -73,7 +80,7 @@ describe("metrics in a real engine", () => {
   it("measures a long line no narrower than this engine, though Firefox rounds each glyph (#5)", () => {
     // Most of these glyphs round up to Firefox's 1/60 px: 0.4 px over the line, summed exactly.
     const s = "Wolfgangline-breakerToyotaToyotaToyotaoffice".repeat(8);
-    assert.isAtLeast(measure(inter, 15, s), faceOf(FONT).m(s) - 0.001);
+    assert.isAtLeast(measure(inter, 15, s), measured(s) - 0.001);
     assert.isAtLeast(measure(inter, 15, s), paints(s) - 0.001);
   });
 
@@ -90,10 +97,9 @@ describe("metrics in a real engine", () => {
     { arbitrary: { runs: 300 } },
   );
 
-  // Chromium on Linux measures both wider than the table, so this file doesn't run there
-  // (vite.config.ts) until #3 is fixed.
+  // Without geometric precision, Chromium on Linux lays both out wider than the table.
   it("measures a colon between digits and cuts an accented word within this engine (#3)", () => {
-    assert.isAtLeast(measure(inter, 15, "12:30"), faceOf(FONT).m("12:30") - 0.05);
+    assert.isAtLeast(measure(inter, 15, "12:30"), measured("12:30") - 0.05);
     const p = prepare("caféline-breaker", tableFace(inter, 15));
     assert.isAtMost(paints(toText(p, cut(p, 99.5, { at: "start" }))), 99.5);
   });
