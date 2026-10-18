@@ -24,10 +24,14 @@ const budgets = {
   // half a ch past a stop, 2 KB.
   "src/lines.ts": 2048,
   "src/solid-lines.tsx": 1024,
+  // The first builds came to 983 and 672: hooks over the same helpers as the Solid
+  // adapter, without JSX.
+  "src/react.ts": 1024,
+  "src/react-lines.ts": 768,
   "src/metrics.ts": 600,
 };
-const packages = /^(solid-js|@solidjs\/|@chenglou\/)/;
-const siblings = /^\.\/(cut|face|dom|lines|metrics|solid)\.tsx?$/;
+const packages = /^(solid-js|@solidjs\/|@chenglou\/|react($|\/))/;
+const siblings = /^\.\/(cut|face|dom|lines|metrics|solid|react)\.tsx?$/;
 
 const bundle = (entry: string) =>
   Effect.promise(() =>

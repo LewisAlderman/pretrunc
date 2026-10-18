@@ -1,6 +1,7 @@
 import { effectNative, strict as effectStrict } from "@effect/tsgo/oxlint-presets";
 import solid from "@solidjs/vite-plugin";
 import solidV2 from "eslint-plugin-solid/configs/v2";
+import { Record } from "effect";
 import { defaultExclude, defineConfig } from "vite-plus";
 import { playwright } from "vite-plus/test/browser-playwright";
 
@@ -69,8 +70,19 @@ export default defineConfig({
       {
         // Browser-mode locators and user events are Promise APIs, so these tests are
         // async functions by necessity.
-        files: ["**/*.browser.test.tsx"],
+        files: ["**/*.browser.test.tsx", "src/react*.browser.test.ts"],
         rules: { "effecttsgo/async-function": "off" },
+      },
+      {
+        // The React adapter: Solid's reactivity rules don't apply there, React's hooks
+        // rules do.
+        files: ["src/react*.ts"],
+        plugins: ["react"],
+        rules: {
+          ...Record.map(solidV2.rules, () => "off" as const),
+          "react/rules-of-hooks": "error",
+          "react/exhaustive-deps": "error",
+        },
       },
       {
         // The bench project loads only when `vp run bench` asks for it.
@@ -92,12 +104,14 @@ export default defineConfig({
         metrics: "src/metrics.ts",
         solid: "src/solid.tsx",
         "solid-lines": "src/solid-lines.tsx",
+        react: "src/react.ts",
+        "react-lines": "src/react-lines.ts",
       },
       formats: ["es"],
       fileName: (_format, name) => `${name}.js`,
     },
     rolldownOptions: {
-      external: [/^solid-js/, /^@solidjs\//, /^@chenglou\/pretext/],
+      external: [/^solid-js/, /^@solidjs\//, /^@chenglou\/pretext/, /^react($|\/)/],
     },
   },
   test: {

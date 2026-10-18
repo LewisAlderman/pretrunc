@@ -21,7 +21,7 @@ Alexandra Richardson-…                   end at 180 px, backed off to the hyph
 pnpm add pretrunc
 ```
 
-`@chenglou/pretext` is an optional peer dependency, needed only for `pretrunc/lines`; `solid-js` and `@solidjs/web` only for the Solid adapter.
+`@chenglou/pretext` is an optional peer dependency, needed only for `pretrunc/lines`; `solid-js` and `@solidjs/web` only for the Solid adapter; `react` 19 only for the React adapter.
 
 ## One line
 
@@ -63,6 +63,21 @@ import { Clamp } from "pretrunc/solid/lines";
 `Truncate` and `Clamp` follow their element's width and font, re-cut on resize and when web fonts load, and with `render="full"` keep the whole text in the page for copying and screen readers. `FontProvider` gives a list its font once, so its rows read no computed style.
 
 The package exports a `solid` condition pointing at its TypeScript source, which Solid's Vite plugin compiles with the app; other bundlers get the built JavaScript in `dist/`.
+
+## React
+
+```tsx
+import { FontProvider, Truncate, useCut } from "pretrunc/react";
+import { Clamp } from "pretrunc/react/lines";
+
+<Truncate text={path} at="middle" protect={/[^/]+$/} tailMatch={0} />
+<Clamp text={story} lines={3} expanded={open} after={<button>more</button>} />
+<FontProvider font='14px "Inter Variable"' letterSpacing={0}>
+  {rows.map((row) => <Truncate key={row.id} text={row.name} />)}
+</FontProvider>
+```
+
+The components take the same props as the Solid ones, with `className`. `<Truncate>` reads its cut through `useSyncExternalStore`, and a cut is one number, so a resize that doesn't move a row's cut doesn't render that row. `useCut` gives `{ ref, prepared, cut }` for markup of your own, and `useBox` the width, font and letter spacing a cut follows.
 
 ## No canvas
 
