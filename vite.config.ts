@@ -10,7 +10,7 @@ const notOurs = ["dist/**", "bench/results.*.md"];
 
 const engines = playwright();
 // Fresh per project: Vitest writes each project's name onto its instances.
-const browsers = () => [
+const browsers = (webkit = true) => [
   {
     browser: "chromium" as const,
     // The Inter table measures narrower than Chromium on Linux (#3), CI's runner among
@@ -20,7 +20,7 @@ const browsers = () => [
       : {}),
   },
   { browser: "firefox" as const },
-  { browser: "webkit" as const },
+  ...(webkit ? [{ browser: "webkit" as const }] : []),
 ];
 
 export default defineConfig({
@@ -123,11 +123,18 @@ export default defineConfig({
       },
       {
         extends: true,
-        // Cuts are checked against each engine's own text layout.
+        // Cuts are checked against each engine's own text layout. WebKit on Linux is its
+        // own port, shaping with HarfBuzz over FreeType where Safari uses CoreText, and the
+        // WebKit layout pretrunc works around is the same in both, so it runs on macOS only.
         test: {
           name: "browser",
           include: ["**/*.browser.test.{ts,tsx}"],
-          browser: { enabled: true, headless: true, provider: engines, instances: browsers() },
+          browser: {
+            enabled: true,
+            headless: true,
+            provider: engines,
+            instances: browsers(process.platform !== "linux"),
+          },
         },
       },
       ...(process.env.BENCH

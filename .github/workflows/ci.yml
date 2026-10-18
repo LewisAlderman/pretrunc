@@ -1,10 +1,19 @@
-# Checks, tests in Node and all three engines, and the build, on every push and pull request.
+# Checks, tests in Node, Chromium and Firefox, and the build, on every push and pull
+# request that touches more than docs or the demo. WebKit runs on macOS only
+# (vite.config.ts), and the pre-commit hook type-checks the demo.
 name: CI
 
 on:
   push:
     branches: [main]
+    paths-ignore: ["**/*.md", "demo/**"]
   pull_request:
+    paths-ignore: ["**/*.md", "demo/**"]
+
+# A newer push to the same branch makes the run in progress moot.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -25,7 +34,7 @@ jobs:
           cache: true
       # The Effect lint rules `vp check` needs; `vp run setup` also installs Git hooks.
       - run: vp exec effect-tsgo patch --oxlint
-      - run: vp exec playwright install --with-deps chromium firefox webkit
+      - run: vp exec playwright install --with-deps chromium firefox
       - run: vp check
       - run: vp run test
       - run: vp run build
