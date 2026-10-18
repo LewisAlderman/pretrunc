@@ -45,7 +45,7 @@ const latin = Arbitrary.map(
         ".",
       ]),
     ),
-    { maxLength: 10 },
+    { maxLength: 40 },
   ),
   Array.join(""),
 );
@@ -67,11 +67,19 @@ describe("metrics in a real engine", () => {
       if (linuxChromium) return;
       const table = measure(inter, 15, s);
       const canvas = faceOf(FONT).m(s);
-      assert.isAtLeast(table, canvas - 0.05, JSON.stringify(s));
+      assert.isAtLeast(table, canvas - 0.001, JSON.stringify(s));
       assert.isAtMost(table, canvas * 1.1 + 0.05, JSON.stringify(s));
     },
     { arbitrary: { runs: 300 } },
   );
+
+  it("measures a long line no narrower than this engine, though Firefox rounds each glyph", () => {
+    if (linuxChromium) return;
+    // Most of these glyphs round up to Firefox's 1/60 px: 0.4 px over the line, summed exactly.
+    const s = "Wolfgangline-breakerToyotaToyotaToyotaoffice".repeat(8);
+    assert.isAtLeast(measure(inter, 15, s), faceOf(FONT).m(s) - 0.001);
+    assert.isAtLeast(measure(inter, 15, s), paints(s) - 0.001);
+  });
 
   it.prop(
     "cuts from the table never lay out wider than the width",

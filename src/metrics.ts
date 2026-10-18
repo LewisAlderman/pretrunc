@@ -41,19 +41,28 @@ const decode = (metrics: Metrics): Decoded => {
   return d;
 };
 
+// Firefox rounds each glyph's advance, kerning to the next glyph included, to the nearest
+// 1/60 px, its layout unit, so a run of glyphs that round up lays out wider than their
+// sum: 0.4 px over 352 characters of Inter at 15 px. Each glyph is rounded up instead,
+// never less than Firefox and never less than the exact widths Chrome and WebKit use.
+const up = (units: number, scale: number) => Math.ceil(units * scale * 60) / 60;
+
 /** Measures text in `metrics` at `px` px: each character's advance plus each pair's kerning. */
 export const measure = (metrics: Metrics, px: number, text: string): number => {
   const { advance, kern } = decode(metrics);
   const em = metrics.unitsPerEm;
-  let units = 0;
+  const scale = px / em;
+  let width = 0;
+  // The previous glyph's advance in font units, waiting for its kerning to this one.
+  let glyph = 0;
   let previous = -1;
   for (const char of text) {
     const code = char.codePointAt(0)!;
-    units += advance.get(code) ?? UNKNOWN * em;
-    if (previous >= 0) units += kern.get(previous * 0x110000 + code) ?? 0;
+    if (previous >= 0) width += up(glyph + (kern.get(previous * 0x110000 + code) ?? 0), scale);
+    glyph = advance.get(code) ?? UNKNOWN * em;
     previous = code;
   }
-  return (units * px) / em;
+  return previous < 0 ? 0 : width + up(glyph, scale);
 };
 
 /** A face that measures with `metrics` at `px` px, for `prepare` with no canvas. */
