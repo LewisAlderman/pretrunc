@@ -158,10 +158,68 @@ pre {
   font-size: 14px;
 }
 
-.frame pre {
-  margin: 0;
-  overflow-x: auto;
+/* Result, Solid and React tabs above each frame. */
+.tabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1px solid var(--mat);
+}
+
+.tabs [role="tab"] {
+  padding: 4px 12px;
+  border: 0;
+  border-radius: 4px 4px 0 0;
+  background: transparent;
   color: var(--rule);
+  cursor: pointer;
+}
+
+.tabs [role="tab"]:hover {
+  color: var(--paper);
+}
+
+.tabs [role="tab"][aria-selected="true"] {
+  background: var(--mat);
+  color: var(--paper);
+}
+
+/* A frame's code, with each name's type and JSDoc on hover. The popups hang off their
+   token, so the code wraps instead of scrolling, which would clip them. */
+.code {
+  --twoslash-popup-bg: #0f2622;
+  --twoslash-popup-color: var(--rule);
+  --twoslash-popup-shadow: 0 6px 20px rgb(0 0 0 / 0.45);
+  --twoslash-border-color: var(--mat);
+  --twoslash-docs-color: var(--rule);
+  --twoslash-code-font: var(--code);
+  --twoslash-underline-color: var(--grid-major);
+}
+
+/* Shiki writes its theme's background inline, so only !important replaces it. */
+.code > pre.shiki {
+  margin: 0;
+  padding: 8px 10px;
+  overflow: visible;
+  border-radius: 0 0 6px 6px;
+  background-color: var(--mat) !important;
+  /* 43 characters in the narrowest frame, 340 px; the snippets format at 42. */
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+/* As wide as its type, not as its token, up to a line's worth. */
+/* The page sets code at 13 px; a snippet's code takes its pre's size. */
+.code > pre.shiki > code {
+  font-size: inherit;
+}
+
+.code .twoslash-popup-container {
+  width: max-content;
+  max-width: min(30rem, 80vw);
+}
+
+.code .twoslash-popup-code {
   white-space: pre-wrap;
 }
 

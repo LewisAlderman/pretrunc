@@ -3,6 +3,7 @@
 // with the API: a new option gets a control here and, if it changes what people see, an
 // example.
 import "@fontsource-variable/inter";
+import "@shikijs/twoslash/style-rich.css";
 import "./demo.css";
 import { type JSX, render } from "@solidjs/web";
 import {
@@ -13,12 +14,14 @@ import {
   For,
   onSettled,
   Show,
+  untrack,
 } from "solid-js";
 import inter from "../fixtures/inter-latin.ts";
 import { type CutOptions, cut, head, prepare, tail, toText, truncated } from "../src/index.ts";
 import { observe, onFonts } from "../src/dom.ts";
 import { clamp, prepareLines } from "../src/lines.ts";
 import { tableFace } from "../src/metrics.ts";
+import snippets from "virtual:snippets";
 import { Clamp } from "../src/solid-lines.tsx";
 import { createBox, createCut, FontProvider, Truncate } from "../src/solid.tsx";
 
@@ -45,20 +48,99 @@ function Mat(props: { readonly children: JSX.Element; readonly wide?: boolean })
   );
 }
 
+type Tab = "result" | "solid" | "react" | "code";
+const labels: Record<Tab, string> = {
+  result: "Result",
+  solid: "Solid",
+  react: "React",
+  code: "Code",
+};
+let frames = 0;
+
+// A frame's live result, and its code for Solid and for React, or once where it uses no
+// framework. The code comes from demo/snippets, highlighted with types on hover.
 function Frame(props: {
   readonly title: string;
   readonly note: string;
-  readonly code: string;
+  readonly snippet: string;
   readonly children: JSX.Element;
 }) {
+  const id = `frame-${++frames}`;
+  const code = (tab: Tab) => {
+    const html = snippets[tab === "code" ? props.snippet : `${props.snippet}.${tab}`];
+    if (html === undefined) throw new Error(`No snippet for ${props.snippet} (${tab})`);
+    return html;
+  };
+  const tabs: readonly Tab[] = untrack(() => snippets[props.snippet] === undefined)
+    ? ["result", "solid", "react"]
+    : ["result", "code"];
+  const [tab, setTab] = createSignal<Tab>("result");
+  // Arrow keys move between tabs and show each, as a tab list's should.
+  const move = (event: KeyboardEvent) => {
+    const at = tabs.indexOf(tab());
+    const to =
+      event.key === "ArrowRight"
+        ? (at + 1) % tabs.length
+        : event.key === "ArrowLeft"
+          ? (at + tabs.length - 1) % tabs.length
+          : event.key === "Home"
+            ? 0
+            : event.key === "End"
+              ? tabs.length - 1
+              : -1;
+    if (to < 0) return;
+    event.preventDefault();
+    setTab(tabs[to]!);
+    (event.currentTarget as HTMLElement).querySelectorAll("button")[to]?.focus();
+  };
   return (
     <figure class="frame">
       <h3>{props.title}</h3>
       <p>{props.note}</p>
-      <Mat>{props.children}</Mat>
-      <pre>
-        <code>{props.code}</code>
-      </pre>
+      <div
+        role="tablist"
+        aria-label={`${props.title}: result and code`}
+        class="tabs"
+        onKeyDown={move}
+      >
+        <For each={tabs}>
+          {(key) => (
+            <button
+              type="button"
+              role="tab"
+              id={`${id}-${key}`}
+              aria-controls={`${id}-${key}-panel`}
+              aria-selected={tab() === key ? "true" : "false"}
+              tabindex={tab() === key ? 0 : -1}
+              onClick={() => setTab(key)}
+            >
+              {labels[key]}
+            </button>
+          )}
+        </For>
+      </div>
+      <div
+        role="tabpanel"
+        id={`${id}-result-panel`}
+        aria-labelledby={`${id}-result`}
+        hidden={tab() !== "result"}
+      >
+        <Mat>{props.children}</Mat>
+      </div>
+      <For each={tabs.slice(1)}>
+        {(key) => (
+          <div
+            role="tabpanel"
+            id={`${id}-${key}-panel`}
+            aria-labelledby={`${id}-${key}`}
+            class="code"
+            tabindex={0}
+            hidden={tab() !== key}
+            // oxlint-disable-next-line solid/no-innerhtml -- Shiki's HTML of the repo's own snippet files, written as the demo builds
+            innerHTML={code(key)}
+          />
+        )}
+      </For>
     </figure>
   );
 }
@@ -192,13 +274,14 @@ function Gallery() {
       <h2>Examples</h2>
       <p>
         Drag a frame's bottom-right corner to resize it, or set every frame at once from the top of
-        the page. The grid lines are 10 px apart, with a bolder one every 50 px.
+        the page. The grid lines are 10 px apart, with a bolder one every 50 px. Each frame's Solid
+        and React tabs hold its code: hover a name for its type and docs.
       </p>
       <div class="gallery">
         <Frame
           title="End, backing off to a word"
           note="The default. A cut near a space backs off to it, within a quarter of what that side keeps."
-          code={`<Truncate text={name} />`}
+          snippet="end-word"
         >
           <div class="strip">
             <Truncate text={NAME} />
@@ -207,7 +290,7 @@ function Gallery() {
         <Frame
           title="End, any grapheme"
           note="Without word preference the cut keeps as much as fits."
-          code={`<Truncate text={name} words={false} />`}
+          snippet="end-any"
         >
           <div class="strip">
             <Truncate text={NAME} words={false} />
@@ -216,7 +299,7 @@ function Gallery() {
         <Frame
           title="Middle"
           note="Keeps both ends; the head takes half the room."
-          code={`<Truncate text={name} at="middle" />`}
+          snippet="middle"
         >
           <div class="strip">
             <Truncate text={NAME} at="middle" />
@@ -225,7 +308,7 @@ function Gallery() {
         <Frame
           title="Middle, a third for the head"
           note="ratio sets the head's share of the room."
-          code={`<Truncate text={path} at="middle" ratio={0.33} />`}
+          snippet="middle-third"
         >
           <div class="strip">
             <Truncate text={PATH} at="middle" ratio={0.33} />
@@ -234,7 +317,7 @@ function Gallery() {
         <Frame
           title="Start"
           note="Keeps the end, for breadcrumbs and paths read from the right."
-          code={`<Truncate text={path} at="start" />`}
+          snippet="start"
         >
           <div class="strip">
             <Truncate text={PATH} at="start" />
@@ -243,7 +326,7 @@ function Gallery() {
         <Frame
           title="Keeping the file name"
           note="The tail starts at a protected match, which stays whole or goes whole."
-          code={`<Truncate\n  text={path}\n  at="middle"\n  protect={/[^/]+$/g}\n  tailMatch={0}\n/>`}
+          snippet="file-name"
         >
           <div class="strip">
             <Truncate text={PATH} at="middle" protect={/[^/]+$/g} tailMatch={0} />
@@ -252,7 +335,7 @@ function Gallery() {
         <Frame
           title="The last six characters of an ID"
           note="tailGraphemes keeps a number of graphemes at the end."
-          code={`<Truncate text={sha} at="middle" tailGraphemes={6} words={false} />`}
+          snippet="last-six"
         >
           <div class="strip">
             <Truncate
@@ -266,7 +349,7 @@ function Gallery() {
         <Frame
           title="Mentions kept whole"
           note="A cut never splits a protected match: a mention shows whole or not at all."
-          code={`<Truncate text={message} protect={/@[\\w.]+/g} />`}
+          snippet="mentions"
         >
           <div class="strip">
             <Truncate
@@ -278,7 +361,7 @@ function Gallery() {
         <Frame
           title="Your own ellipsis"
           note="Any string, measured in the text's font, kerning beside it included."
-          code={`<Truncate text={story} at="middle" ellipsis=" [...] " />`}
+          snippet="own-ellipsis"
         >
           <div class="strip">
             <Truncate text={STORY} at="middle" ellipsis=" [...] " />
@@ -287,14 +370,14 @@ function Gallery() {
         <Frame
           title="An element instead of an ellipsis"
           note="Give createCut the element's width as the ellipsis and render it yourself."
-          code={`const handle = createCut({ text: tags, ellipsis: 30 });\n// the kept text, then <span class="chip">+3</span>`}
+          snippet="element-ellipsis"
         >
           <Tags />
         </Frame>
         <Frame
           title="Whole text in the page"
           note="Select the line and copy it: you get every character. The cut part is there at no width."
-          code={`<Truncate text={path} at="middle" render="full" />`}
+          snippet="whole-text"
         >
           <div class="strip">
             <Truncate text={PATH} at="middle" render="full" />
@@ -303,7 +386,7 @@ function Gallery() {
         <Frame
           title="Letter spacing"
           note="Read from the element's style, or given as letterSpacing."
-          code={`<div style="letter-spacing: 2px">\n  <Truncate text={name} at="middle" />\n</div>`}
+          snippet="letter-spacing"
         >
           <div class="strip" style={{ "letter-spacing": "2px" }}>
             <Truncate text={NAME} at="middle" />
@@ -312,7 +395,7 @@ function Gallery() {
         <Frame
           title="One font for a list"
           note="Every row would read its own computed style when it mounts. A FontProvider gives them the font once; give it the font the rows really render in."
-          code={`<FontProvider font='14px "Inter Variable"' letterSpacing={0}>\n  <For each={people}>\n    {(name) => <Truncate text={name} at="middle" />}\n  </For>\n</FontProvider>`}
+          snippet="font-list"
         >
           <div class="strip" style={{ font: `14px ${FAMILY}` }}>
             <FontProvider font={`14px ${FAMILY}`} letterSpacing={0}>
@@ -323,7 +406,7 @@ function Gallery() {
         <Frame
           title="Any script"
           note="Emoji, flags and combining marks are never split; Arabic and Devanagari are measured as they join."
-          code={`<Truncate text={text} at="middle" />`}
+          snippet="any-script"
         >
           <div class="strip">
             <Truncate text="👩🏽‍💻 Café naïve 🇬🇧 日本語 مرحبا بالعالم नमस्ते दुनिया" at="middle" />
@@ -332,14 +415,14 @@ function Gallery() {
         <Frame
           title="Three lines, with more and less"
           note="The button's width is kept free on the last line. Opened, it follows the text."
-          code={`<Clamp\n  text={story}\n  lines={3}\n  expanded={open()}\n  after={<button>{open() ? "less" : "more"}</button>}\n/>`}
+          snippet="more-less"
         >
           <Expandable text={STORY} lines={3} />
         </Frame>
         <Frame
           title="The last two lines"
           note="A clamp at the start keeps the end, as a log tail does."
-          code={`<Clamp text={story} lines={2} at="start" />`}
+          snippet="last-two"
         >
           <div class="strip">
             <Clamp text={STORY} lines={2} at="start" />
@@ -348,7 +431,7 @@ function Gallery() {
         <Frame
           title="Middle of a paragraph"
           note="The ellipsis sits halfway through, inside a line."
-          code={`<Clamp text={story} lines={3} at="middle" />`}
+          snippet="middle-paragraph"
         >
           <div class="strip">
             <Clamp text={STORY} lines={3} at="middle" />
@@ -357,7 +440,7 @@ function Gallery() {
         <Frame
           title="Preformatted"
           note="pre-wrap keeps spaces, tabs and line breaks."
-          code={`<Clamp text={log} lines={3} whiteSpace="pre-wrap" />`}
+          snippet="preformatted"
         >
           <div class="strip" style={{ "font-family": "var(--code)", "font-size": "13px" }}>
             <Clamp text={LOG} lines={3} whiteSpace="pre-wrap" />
@@ -366,7 +449,7 @@ function Gallery() {
         <Frame
           title="Code, cut in the middle"
           note="Tabs count as wide as a tab stop can take."
-          code={`<Clamp text={code} lines={4} at="middle" whiteSpace="pre-wrap" />`}
+          snippet="code-middle"
         >
           <div class="strip" style={{ "font-family": "var(--code)", "font-size": "13px" }}>
             <Clamp text={CODE} lines={4} at="middle" whiteSpace="pre-wrap" />
@@ -375,14 +458,14 @@ function Gallery() {
         <Frame
           title="On a canvas"
           note="The core needs no DOM: these labels are drawn with fillText."
-          code={`const p = prepare(label, font);\nctx.fillText(toText(p, cut(p, width)), 8, y);`}
+          snippet="canvas"
         >
           <CanvasLabels />
         </Frame>
         <Frame
           title="Without a canvas"
           note="Cut from Inter's metrics table, as a server or a worker cuts it."
-          code={`import inter from "./inter.ts"; // vp run metrics\nconst p = prepare(story, tableFace(inter, 16));`}
+          snippet="no-canvas"
         >
           <NoCanvas />
         </Frame>
@@ -498,7 +581,7 @@ function Layouts() {
         <Frame
           title="Beside an icon and a size"
           note="flex: 1 gives the path the room the row has left. A flex item with overflow: hidden can shrink below its text, so it needs no min-width: 0."
-          code={`<For each={files}>\n  {(file) => (\n    <li class="row">\n      <span class="icon">TS</span>\n      <Truncate\n        class="grow" // flex: 1\n        text={file.path}\n        at="middle"\n        protect={/[^/]+$/g}\n        tailMatch={0}\n      />\n      <span class="size">{file.size}</span>\n    </li>\n  )}\n</For>`}
+          snippet="flex-row"
         >
           <ul class="strip files">
             <For each={FILES}>
@@ -521,7 +604,7 @@ function Layouts() {
         <Frame
           title="In table cells"
           note="With table-layout: fixed, the table sets each column's width, not the text in it, so each cell has a width to cut to. The email keeps its domain."
-          code={`<table style="table-layout: fixed; width: 100%">\n  <For each={contacts}>\n    {(c) => (\n      <tr>\n        <td><Truncate text={c.name} /></td>\n        <td>\n          <Truncate\n            text={c.email}\n            at="middle"\n            protect={/@.+$/g}\n            tailMatch={0}\n          />\n        </td>\n      </tr>\n    )}\n  </For>\n</table>`}
+          snippet="table-cells"
         >
           <div class="strip">
             <table class="people">
@@ -550,7 +633,7 @@ function Layouts() {
         <Frame
           title="A list of conversations"
           note="One line for the name beside the time, two for the last message. Each reads the font its own element renders in."
-          code={`<For each={threads}>\n  {(t) => (\n    <article class="thread">\n      <header class="row">\n        <Truncate class="grow name" text={t.name} />\n        <time>{t.time}</time>\n      </header>\n      <Clamp class="preview" text={t.last} lines={2} />\n    </article>\n  )}\n</For>`}
+          snippet="conversations"
         >
           <div class="strip">
             <For each={THREADS}>
@@ -569,14 +652,14 @@ function Layouts() {
         <Frame
           title="Text from a signal"
           note="Type in the field: text is reactive, and each change is prepared and cut again."
-          code={`const [title, setTitle] = createSignal("Offsite planning: …");\n\n<input\n  value={title()}\n  onInput={(e) => setTitle(e.currentTarget.value)}\n/>\n<Truncate text={title()} at="middle" />`}
+          snippet="signal-text"
         >
           <Retitle />
         </Frame>
         <Frame
           title="Chips sized by their text"
           note="A box as wide as its text has no room to observe, so give the width. Each chip stops at 96 px and shrinks to a short topic."
-          code={`<For each={topics}>\n  {(topic) => (\n    <span class="topic">\n      <Truncate text={topic} width={96} />\n    </span>\n  )}\n</For>`}
+          snippet="chips"
         >
           <div class="strip topics">
             <For each={TOPICS}>
@@ -591,7 +674,7 @@ function Layouts() {
         <Frame
           title="An ellipsis you can open"
           note="createCut gives the cut and leaves the markup to you. Here the ellipsis is a 20 px button that shows the whole path."
-          code={`const handle = createCut({ text: path, at: "middle", ellipsis: 20 });\n// head(c) and tail(c) of handle.cut() give the two ends\n\n<div ref={handle.ref}>\n  {start}\n  <button class="gap" onClick={() => setOpen(true)}>…</button>\n  {end}\n</div>`}
+          snippet="openable-path"
         >
           <OpenablePath />
         </Frame>

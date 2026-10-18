@@ -2,12 +2,16 @@ import { effectNative, strict as effectStrict } from "@effect/tsgo/oxlint-preset
 import solid from "@solidjs/vite-plugin";
 import solidV2 from "eslint-plugin-solid/configs/v2";
 import { Record } from "effect";
+import { snippets } from "./demo/snippets.ts";
 import { defaultExclude, defineConfig } from "vite-plus";
 import { playwright } from "vite-plus/test/browser-playwright";
 
 // Files we don't author: the build's output, and the bench results `vp run bench`
 // writes on every run.
 const notOurs = ["dist/**", "bench/results.*.md"];
+// The demo's code to read: Twoslash type-checks it as the demo builds
+// (demo/snippets.ts), so lint leaves it alone.
+const snippetFiles = "demo/snippets/**";
 
 const engines = playwright();
 // Fresh per project: Vitest writes each project's name onto its instances.
@@ -49,13 +53,15 @@ export default defineConfig({
   },
   fmt: {
     ignorePatterns: notOurs,
+    // As narrow as a gallery frame's code, so its lines don't wrap.
+    overrides: [{ files: [snippetFiles], options: { printWidth: 42 } }],
   },
   lint: {
     // Effect rules come from `effect-tsgo patch --oxlint` (`vp run setup`). Without the
     // patch, oxlint fails on the unknown `effecttsgo` plugin.
     extends: [effectStrict, effectNative],
     plugins: ["unicorn", "typescript", "oxc", "vitest"],
-    ignorePatterns: notOurs,
+    ignorePatterns: [...notOurs, snippetFiles],
     jsPlugins: [{ name: "vite-plus", specifier: "vite-plus/oxlint-plugin" }, "eslint-plugin-solid"],
     settings: solidV2.settings,
     rules: {
@@ -72,6 +78,12 @@ export default defineConfig({
         // async functions by necessity.
         files: ["**/*.browser.test.tsx", "src/react*.browser.test.ts"],
         rules: { "effecttsgo/async-function": "off" },
+      },
+      {
+        // A Vite plugin: its hooks are Promise APIs, and it reads the snippet files as the
+        // demo builds, with no Effect platform package for that.
+        files: ["demo/snippets.ts"],
+        rules: { "effecttsgo/async-function": "off", "effecttsgo/node-builtin-import": "off" },
       },
       {
         // The React adapter: Solid's reactivity rules don't apply there, React's hooks
@@ -91,7 +103,7 @@ export default defineConfig({
       },
     ],
   },
-  plugins: [solid()],
+  plugins: [solid(), snippets(import.meta.dirname)],
   build: {
     target: "esnext",
     minify: false,
