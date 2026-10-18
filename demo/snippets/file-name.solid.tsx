@@ -2,12 +2,18 @@ declare const path: string;
 // ---cut---
 import { Truncate } from "pretrunc/solid";
 
-// The tail is the file name and its slash;
-// the head backs off to a whole folder.
+// File name first, then ~/Projects/ at
+// half weight: each whole while it can,
+// then as much as fits.
 <Truncate
   text={path}
   at="middle"
-  protect={/\/[^/]+$/}
-  tailMatch={0}
+  protect={[
+    /\/[^/]+$/,
+    {
+      pattern: /^~\/[^/]+\//,
+      weight: 0.5,
+    },
+  ]}
   words={{ within: Infinity }}
 />;

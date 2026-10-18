@@ -16,8 +16,7 @@ import { Truncate } from "pretrunc/react";
         className="grow"
         text={file.path}
         at="middle"
-        protect={/[^/]+$/}
-        tailMatch={0}
+        protect={/\/[^/]+$/}
       />
       <span className="size">
         {file.size}

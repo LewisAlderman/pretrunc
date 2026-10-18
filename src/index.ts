@@ -4,6 +4,8 @@ export {
   type CutOptions,
   type Prepared,
   type PrepareOptions,
+  type Protect,
+  type Protection,
   cut,
   head,
   prepare,

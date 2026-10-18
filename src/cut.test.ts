@@ -1,7 +1,7 @@
 import { assert, describe, it } from "@effect/vitest";
 import { Arbitrary, Array, Schema } from "effect";
 import { face } from "./face.ts";
-import { cut, head, prepare, type Prepared, tail, toText, truncated } from "./cut.ts";
+import { cut, head, prepare, type Prepared, type Protect, tail, toText, truncated } from "./cut.ts";
 
 // A font with known metrics. Pair kerning, including pairs with the ellipsis on both
 // sides, is what canvas does for most Latin text. `shaped` adds two effects no pair
@@ -183,6 +183,37 @@ describe("cut", () => {
     { arbitrary: { runs: 3000 } },
   );
 
+  // Matches cut to fit take their room by weight, and each side still moves one way.
+  // Whole ones switch the cut once, at the width where they start to fit, so they're
+  // left out.
+  const pattern = Arbitrary.schema(
+    Schema.Literals(["[A-Z]+", "中+", "[a-z]+$", "^[^ ]+", "\\/[^/]*$", "f+i?"]),
+  );
+  const weight = Arbitrary.schema(Schema.Literals([1, 0.5, 0.2]));
+  it.prop(
+    "moves each side one way as the width grows with protected matches cut to fit",
+    [text, share, ratio, flag, pattern, pattern, weight, weight],
+    ([s, q, split, trim, first, second, w1, w2]) => {
+      const protect = [
+        { pattern: new RegExp(first, "g"), weight: w1 },
+        { pattern: new RegExp(second, "g"), weight: w2 },
+      ];
+      const p = prepare(s, plain, { protect });
+      const options = { at: "middle", ratio: split, trim } as const;
+      let last = cut(p, widthFor(p, q), options);
+      for (let i = 1; i <= 80; i++) {
+        const width = widthFor(p, q) + i / 4;
+        const next = cut(p, width, options);
+        if (!truncated(next)) break;
+        if (head(next) < head(last) || tail(next) > tail(last)) {
+          assert.fail(JSON.stringify([p.text, width, split, trim, first, second, w1, w2]));
+        }
+        last = next;
+      }
+    },
+    { arbitrary: { runs: 3000 } },
+  );
+
   // Each search starts where the last one on the text ended, which must never show.
   it.prop(
     "cuts the same whatever the text was cut at before",
@@ -247,10 +278,10 @@ describe("cut", () => {
   );
 
   it.prop(
-    "keeps a protected match whole or drops it whole",
+    "keeps a whole protected match whole or drops it whole",
     [text, share, at],
     ([s, q, where]) => {
-      const p = prepare(s, plain, { protect: /[A-Z]+|中+/g });
+      const p = prepare(s, plain, { protect: { pattern: /[A-Z]+|中+/g, whole: true } });
       const c = cut(p, widthFor(p, q), { at: where });
       for (const m of p.text.matchAll(/[A-Z]+|中+/g)) {
         const end = m.index + m[0].length;
@@ -263,7 +294,7 @@ describe("cut", () => {
 });
 
 describe("cut examples", () => {
-  const p = (s: string, protect?: RegExp) => prepare(s, plain, protect ? { protect } : {});
+  const p = (s: string, protect?: Protect) => prepare(s, plain, protect ? { protect } : {});
 
   it("collapses white space the way the page paints it", () => {
     assert.strictEqual(p("  Ada \n\t Lovelace ").text, "Ada Lovelace");
@@ -285,16 +316,53 @@ describe("cut examples", () => {
     assert.strictEqual(toText(list, cut(list, 41, { at: "start", words: false })), "…ooo");
   });
 
-  it("keeps a path's file name in the middle", () => {
-    const path = p("~/Projects/atlas/src/layout.ts", /[^/]+$/g);
-    const c = cut(path, 140, { at: "middle", tailMatch: 0 });
-    assert.isTrue(toText(path, c).endsWith("…layout.ts"));
+  it("keeps a path's file name in the tail, the room left going to the head at ratio 1", () => {
+    const path = p("~/Projects/atlas/src/layout.ts", /\/[^/]+$/);
+    assert.strictEqual(
+      toText(path, cut(path, 140, { at: "middle", ratio: 1 })),
+      "~/Projec…/layout.ts",
+    );
+    assert.strictEqual(toText(path, cut(path, 140, { at: "middle" })), "~/P…/src/layout.ts");
   });
 
-  it("keeps a protected file name wider than the tail's share while it fits, then gives its room to the head", () => {
-    const path = p("~/Projects/atlas/src/line-breaker.test.ts", /[^/]+$/g);
+  it("keeps as much of a protected match as fits, cut on its side toward the ellipsis", () => {
+    const path = p("~/Projects/atlas/src/layout.ts", /\/[^/]+$/);
+    // "/layout.ts" and the ellipsis need 78 px, so the tail keeps what fits of it.
+    assert.strictEqual(toText(path, cut(path, 60, { at: "middle", words: false })), "…out.ts");
+  });
+
+  it("keeps the match with the higher weight first", () => {
+    const folder = { pattern: /^~\/[^/]+\//, weight: 0.5 };
+    const file = /\/[^/]+$/;
+    const fileFirst = p("~/Projects/atlas/src/layout.ts", [folder, file]);
+    const folderFirst = p("~/Projects/atlas/src/layout.ts", [
+      { ...folder, weight: 1 },
+      { pattern: file, weight: 0.5 },
+    ]);
+    const options = { at: "middle", words: false } as const;
+    // At 120 px only one of them fits whole: the one with the higher weight.
+    assert.strictEqual(toText(fileFirst, cut(fileFirst, 120, options)), "~/Pro…/layout.ts");
+    assert.strictEqual(toText(folderFirst, cut(folderFirst, 120, options)), "~/Projects/….ts");
+  });
+
+  it("never backs a side off into a match it kept whole", () => {
+    // "ABC" runs on into "defgh", so the nearest boundary before the head's end is the
+    // space before "ABC": backing off to it would drop the match.
+    const text = p("x ABCdefgh ijklmnop", /ABC/);
+    const options = { at: "middle", words: { within: Infinity } } as const;
+    for (let width = 40; width <= 150; width++) {
+      if (metrics(false)("x ABC…") > width - 1 / 64) continue;
+      assert.include(toText(text, cut(text, width, options)), "ABC", `${width} px`);
+    }
+  });
+
+  it("keeps a whole protected file name wider than the tail's share while it fits, then gives its room to the head", () => {
+    const path = p("~/Projects/atlas/src/line-breaker.test.ts", {
+      pattern: /[^/]+$/g,
+      whole: true,
+    });
     // "line-breaker.test.ts" is 132 px, past half of the 188 px beside the ellipsis.
-    const c = cut(path, 200, { at: "middle" });
+    const c = cut(path, 200, { at: "middle", ratio: 1 });
     assert.isTrue(toText(path, c).endsWith("…line-breaker.test.ts"));
     assert.isTrue(toText(path, c).startsWith("~/"));
     // At 120 px it doesn't fit, so it goes whole and the head takes all the room.
@@ -305,9 +373,8 @@ describe("cut examples", () => {
   });
 
   it("protects matches of a pattern without the g flag", () => {
-    const path = p("~/Projects/atlas/src/layout.ts", /[^/]+$/);
-    const c = cut(path, 140, { at: "middle", tailMatch: 0 });
-    assert.isTrue(toText(path, c).endsWith("…layout.ts"));
+    const path = p("~/Projects/atlas/src/layout.ts", /\/[^/]+$/);
+    assert.isTrue(toText(path, cut(path, 140, { at: "middle", ratio: 1 })).endsWith("…/layout.ts"));
   });
 
   it("backs off to a word within the px given", () => {

@@ -21,6 +21,7 @@ import {
   head,
   pack,
   type Prepared,
+  type Protect,
   prepareRange,
 } from "./cut.ts";
 import { alsoForget, faceOf, widthOf } from "./face.ts";
@@ -42,8 +43,11 @@ export interface PrepareLinesOptions {
   readonly wordBreak?: "normal" | "keep-all";
   /** CSS `letter-spacing` in px. */
   readonly letterSpacing?: number;
-  /** As in `prepare`: matches the last line's cut keeps whole or drops whole. */
-  readonly protect?: RegExp;
+  /**
+   * As in `prepare`, but a clamp counts only whole matches, on its last line, and keeps
+   * each whole or drops it whole.
+   */
+  readonly protect?: Protect;
 }
 
 export interface ClampOptions extends CutOptions {

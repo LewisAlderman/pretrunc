@@ -31,15 +31,18 @@ interface Internal extends Prepared {
   /** The whole text's measured width. */
   readonly y: number;
   /**
-   * Protected matches as offset pairs, start then end, in order. A start is clipped to the
-   * text's, but an end past the text's stays, so a cut at the end of a range of a longer
-   * text still sees the match run on.
+   * Whole protected matches as grapheme pairs, start then end. An end past the text's is
+   * one past its last grapheme, so a cut at the end of a range of a longer text still
+   * sees the match run on.
    * Empty without `protect`. A few numbers, where marking every unit took an array as
    * long as the text, which in Chromium cost more than the regex.
    */
   readonly k: number[];
-  /** How many matches of the whole text come before the first pair, so `tailMatch` counts from the start of it. */
-  readonly m: number;
+  /**
+   * Every protected match, in the order a middle cut keeps them: highest weight first,
+   * then as given. Grapheme triples: start, end, and 1 for a whole match.
+   */
+  readonly q: number[];
   /** Whether every UTF-16 unit is a grapheme below U+0300, so widths are found by code. */
   readonly u: boolean;
   /** Letter spacing in px, counted per UTF-16 unit: WebKit spaces glyphs, several to a grapheme in Indic and Thai. */
@@ -56,9 +59,28 @@ interface Internal extends Prepared {
   z: number;
 }
 
+/** A pattern whose matches a middle cut keeps before the rest of the text. */
+export interface Protection {
+  readonly pattern: RegExp;
+  /** From 0 to 1: a match with a higher weight is kept first. Default 1; ties go in order. */
+  readonly weight?: number;
+  /**
+   * Shown whole or not at all (true), or as much as fits, cut on its side toward the
+   * ellipsis (false). Default false. A cut never splits a whole match.
+   */
+  readonly whole?: boolean;
+}
+
+/** What `protect` takes: a pattern, a `Protection`, or several, in order. */
+export type Protect = RegExp | Protection | ReadonlyArray<RegExp | Protection>;
+
 export interface PrepareOptions {
-  /** Matches that stay whole or go whole, such as a file name: `/[^/]+$/`. */
-  readonly protect?: RegExp;
+  /**
+   * Matches a middle cut keeps first, such as a file name, `/\/[^/]+$/`, before a
+   * leading folder, `{ pattern: /^~\/[^/]+\//, weight: 0.5 }`. A match keeps the side
+   * nearer its middle. Start and end cuts only keep whole matches whole.
+   */
+  readonly protect?: Protect;
   /** CSS `letter-spacing` in px, which every grapheme carries after it. */
   readonly letterSpacing?: number;
 }
@@ -66,12 +88,10 @@ export interface PrepareOptions {
 export interface CutOptions {
   /** Where the ellipsis goes. Default "end". */
   readonly at?: "start" | "middle" | "end";
-  /** Middle: the head's share of the room. Default 0.5. */
+  /** Middle: the head's share of the room protected matches leave. Default 0.5. */
   readonly ratio?: number;
   /** Middle: the tail keeps this many graphemes, when they fit. */
   readonly tailGraphemes?: number;
-  /** Middle: the tail starts at this protected match (from 0), when it fits. */
-  readonly tailMatch?: number;
   /**
    * Back off to a word boundary within a quarter of what that side keeps (true), within
    * `within` px, or never (false). Default true.
@@ -236,24 +256,48 @@ const build = (
   // The width that has to fit for the text to show whole, kerning counted as for a cut.
   const y = x ? w[n]! : f.m(t) + spacing * t.length + g * (t.split("\t").length - 1) + d[n]!;
   let k = none;
-  let m = 0;
-  if (options.protect) {
-    k = [];
-    let before = 0;
-    // Counted over the whole text, so `tailMatch` names the same match in any range of
-    // it. `matchAll` throws on a pattern without the g flag, so one is given it.
-    const pattern = options.protect;
-    for (const match of full.matchAll(
-      pattern.global ? pattern : new RegExp(pattern, pattern.flags + "g"),
-    )) {
-      const start = match.index - from;
-      const end = start + match[0].length;
-      if (start < t.length && end > 0) {
-        if (!k.length) m = before;
-        k.push(Math.max(0, start), end);
+  let q = none;
+  const { protect } = options;
+  if (protect) {
+    // The first grapheme starting at or after offset `o`, or with `back`, the one that
+    // holds it.
+    const at = (o: number, back: boolean) => {
+      const i = Math.min(Math.max(o, 0), t.length);
+      if (simple) return i;
+      let lo = 0;
+      let hi = n;
+      while (lo < hi) {
+        const mid = (lo + hi) >> 1;
+        if (b[mid]! < i) lo = mid + 1;
+        else hi = mid;
       }
-      before++;
+      return back && b[lo]! > i ? lo - 1 : lo;
+    };
+    const spans: number[][] = [];
+    k = [];
+    const list = "length" in protect ? protect : [protect];
+    for (let i = 0; i < list.length; i++) {
+      const given = list[i]!;
+      const entry = given instanceof RegExp ? { pattern: given } : given;
+      const { pattern } = entry;
+      // `matchAll` throws on a pattern without the g flag, so one is given it.
+      for (const match of full.matchAll(
+        pattern.global ? pattern : new RegExp(pattern, pattern.flags + "g"),
+      )) {
+        const start = match.index - from;
+        const end = start + match[0].length;
+        if (start < t.length && end > 0 && end > start) {
+          const s = at(start, true);
+          const e = at(end, false);
+          if (entry.whole) k.push(s, end > t.length ? n + 1 : e);
+          spans.push([-(entry.weight ?? 1), i, s, e, +!!entry.whole]);
+        }
+      }
     }
+    // By weight alone: the sort is stable, and matches come in pattern order, then text order.
+    spans.sort((x, y) => x[0]! - y[0]!);
+    q = [];
+    for (const x of spans) q.push(x[2]!, x[3]!, x[4]!);
   }
   const p: Internal = {
     text: t,
@@ -267,7 +311,7 @@ const build = (
     x,
     y,
     k,
-    m,
+    q,
     u: simple,
     s: spacing,
     g,
@@ -297,11 +341,10 @@ const headWidth = (h: number) => (h > O ? P.w[h]! - P.w[O + 1]! + P.a[O]! : 0);
 const tailWidth = (t: number) => (t < N ? P.w[N]! - P.w[t + 1]! + P.a[t]! : 0);
 // A word boundary inside the text: backing off to either end would keep nothing.
 const isBreak = (i: number) => i > O && i < N && ((P.c[i - 1]! | P.c[i]!) & 1) !== 0;
-// Whether a cut before grapheme `i` falls inside a protected match.
+// Whether a cut before grapheme `i` falls inside a whole protected match.
 const inside = (i: number) => {
-  const at = P.b[i]!;
   const k = P.k;
-  for (let j = 0; j < k.length && k[j]! < at; j += 2) if (at < k[j + 1]!) return true;
+  for (let j = 0; j < k.length; j += 2) if (k[j]! < i && i < k[j + 1]!) return true;
   return false;
 };
 const kern = (left: string, right: string) =>
@@ -440,7 +483,7 @@ export const cutFrom = (
   more = false,
 ): Cut => {
   const p = prepared as Internal;
-  const { b, w, k } = p;
+  const { b, w } = p;
   const { ratio = 0.5, words = true, trim = true, ellipsis = "…" } = options;
   P = p;
   N = p.n;
@@ -467,43 +510,59 @@ export const cutFrom = (
   const r = room - EW;
   h = N;
   t = N;
-  let pinned = false;
+  // Kept whole: the word backoff stops at the head's end of these, and the tail's start.
+  let keepH = O;
+  let keepT = N;
   if (at === "start") {
     h = O;
     t = fitTail(r);
   } else if (at === "end") {
     h = fitHead(r);
   } else {
-    let fixed = -1;
-    const { tailGraphemes, tailMatch } = options;
-    if (tailGraphemes !== undefined) fixed = Math.max(0, N - tailGraphemes);
-    else if (tailMatch !== undefined) {
-      // The first grapheme that starts inside match `tailMatch`, or none.
-      const j = 2 * (tailMatch - p.m);
-      fixed = 0;
-      while (fixed < N && !(j >= 0 && b[fixed]! >= k[j]! && b[fixed]! < k[j + 1]!)) fixed++;
-    }
-    let head = r * ratio;
+    const { tailGraphemes } = options;
+    const fixed = tailGraphemes === undefined ? -1 : Math.max(0, N - tailGraphemes);
     if (fixed >= 0 && fixed < N && tailSide(fixed) <= r) {
-      t = fixed;
-      head = r - tailSide(t);
-      pinned = true;
+      t = keepT = fixed;
+      h = Math.min(t, fitHead(r - tailSide(t)));
     } else {
-      t = fitTail(r - head);
-      // A protected match the tail would split takes room from the head while all of
-      // it fits, instead of vanishing the moment it outgrows the tail's share; one that
-      // doesn't fit goes whole and leaves the head the room. Either way the cut switches
-      // once, at the width where the match starts to fit, never back and forth.
-      if (inside(t)) {
-        let start = t;
-        while (start > 0 && inside(start)) start--;
-        if (tailSide(start) <= r) t = start;
-        else while (t < N && inside(t)) t++;
-        head = r - tailSide(t);
-        pinned = true;
+      // Protected matches, highest weight first, take the room they need: a whole one
+      // all of it or none, any other as much as fits, cut on its side toward the
+      // ellipsis, and then nothing after it gets room. A match keeps the side nearer its
+      // middle, so a file name keeps the tail and a leading folder the head. The text
+      // outside them shares what's left by ratio. As the width grows, a cut match only
+      // gains and the rest only grows, so each side moves one way; a whole match
+      // switches the cut once, at the width where it starts to fit.
+      const { q } = p;
+      let H = O;
+      let T = N;
+      // Room for the rest of the text, until a match is cut to fit: then none, since the
+      // slack beside a cut match moves with every grapheme it gains.
+      let spare = true;
+      for (let j = 0; j < q.length; j += 3) {
+        const s = q[j]!;
+        const e = q[j + 1]!;
+        const toTail = e === N || (s > 0 && w[s]! + w[e]! > 2 * ratio * w[N]!);
+        if (toTail ? s >= T : e <= H) continue;
+        if ((toTail ? headSide(H) + tailSide(s) : headSide(e) + tailSide(T)) <= r) {
+          if (toTail) T = keepT = s;
+          else H = keepH = e;
+        } else if (!q[j + 2]) {
+          if (toTail) T = fitTail(r - headSide(H));
+          else H = fitHead(r - tailSide(T));
+          spare = false;
+          break;
+        }
       }
+      const rest = spare ? r - headSide(H) - tailSide(T) : 0;
+      t = fitTail(tailSide(T) + rest * (1 - ratio));
+      let headRoom = headSide(H) + rest * ratio;
+      // A whole match the tail's share would split goes whole, and leaves the head its room.
+      if (inside(t)) {
+        while (t < N && inside(t)) t++;
+        headRoom = r - tailSide(t);
+      }
+      h = Math.min(t, fitHead(headRoom));
     }
-    h = Math.min(t, fitHead(head));
   }
   // Text the model can't be trusted with settles on real measurements: shrink until it
   // fits, then each side grows while one more fits, which also finds a longer cut that a
@@ -519,13 +578,11 @@ export const cutFrom = (
     // snap the side back a word, then forward again at the next grapheme.
     let limit = words === true ? headWidth(h) / 4 : words.within;
     let i = h;
-    while (i > O && !isBreak(i) && w[h]! - w[i - 1]! <= limit) i--;
+    while (i > keepH && !isBreak(i) && w[h]! - w[i - 1]! <= limit) i--;
     if (isBreak(i)) h = i;
-    // A tail fixed by `tailGraphemes`, `tailMatch` or a protected match already starts
-    // where it should.
     if (words === true) limit = tailWidth(t) / 4;
     i = t;
-    while (!pinned && i < N && !isBreak(i) && w[i + 1]! - w[t]! <= limit) i++;
+    while (i < keepT && !isBreak(i) && w[i + 1]! - w[t]! <= limit) i++;
     if (isBreak(i)) t = i;
   }
   while (h > O && (inside(h) || (trim && p.c[h - 1]! & 2))) h--;

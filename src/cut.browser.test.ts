@@ -176,7 +176,7 @@ describe("cut in a real engine", () => {
     const p = prepare(
       "~/Projects/atlas/packages/renderer/src/text/layout/line-breaker.test.ts",
       canvasFace(FONT),
-      { protect: /[^/]+$/g },
+      { protect: { pattern: /[^/]+$/g, whole: true } },
     );
     const found = reversals(p, 100, 460, { at: "middle" });
     assert.strictEqual(found.length, 1, Array.join(found, "\n"));

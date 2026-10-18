@@ -19,6 +19,7 @@ import {
   head,
   prepare,
   type Prepared,
+  type Protect,
   tail,
   truncated,
 } from "./cut.ts";
@@ -127,8 +128,30 @@ export const useBox = (props: BoxProps): Box => {
 
 export interface CutProps extends CutOptions, BoxProps {
   readonly text: string;
-  readonly protect?: RegExp;
+  readonly protect?: Protect;
 }
+
+/**
+ * `protect` kept by what it says, not by identity: an inline literal is new on every
+ * render, and this returns one value while its patterns, weights and wholes stay the same.
+ */
+export const useProtect = (protect: Protect | undefined): Protect | undefined => {
+  let key = "";
+  if (protect) {
+    for (const given of "length" in protect ? protect : [protect]) {
+      const {
+        pattern,
+        weight = 1,
+        whole = false,
+      } = given instanceof RegExp ? { pattern: given } : given;
+      key += `${pattern}${weight}${whole} `;
+    }
+  }
+  // The value from the render that first saw this key, as React's derived state is kept.
+  const [kept, setKept] = useState({ key, protect });
+  if (kept.key !== key) setKept({ key, protect });
+  return kept.key === key ? kept.protect : protect;
+};
 
 export interface UseCutProps extends CutProps {
   /**
@@ -150,19 +173,14 @@ const useCutWith = (props: CutProps, apart: boolean): CutHandle => {
   const box = useBox(props);
   const { font, spacing, fonts } = box;
   const { text } = props;
-  // A pattern by its source, so an inline literal, new on every render, prepares once.
-  const source = props.protect?.source;
-  const flags = props.protect?.flags;
+  const protect = useProtect(props.protect);
   const prepared = useMemo(
     () =>
       font === undefined
         ? undefined
-        : prepare(text, font, {
-            ...(source === undefined ? {} : { protect: new RegExp(source, flags) }),
-            letterSpacing: spacing,
-          }),
+        : prepare(text, font, { ...(protect ? { protect } : {}), letterSpacing: spacing }),
     // oxlint-disable-next-line react-hooks/exhaustive-deps -- fonts changes when a web font loads, after forget() has dropped the widths the last prepare used
-    [text, font, spacing, source, flags, fonts],
+    [text, font, spacing, protect, fonts],
   );
   // The cut is the snapshot: a number, so a resize that doesn't move it renders nothing.
   const snapshot = (): Cut | undefined => {

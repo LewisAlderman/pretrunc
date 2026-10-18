@@ -24,7 +24,6 @@ import { Truncate } from "pretrunc/solid";
               text={c.email}
               at="middle"
               protect={/@.+$/}
-              tailMatch={0}
             />
           </td>
         </tr>

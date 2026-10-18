@@ -325,15 +325,14 @@ function Gallery() {
         </Frame>
         <Frame
           title="Keeping the file name"
-          note="The tail starts at the file name and its slash, which stay whole or go whole, and the head backs off to the last folder that fits."
+          note="The file name keeps the tail and ~/Projects/ the head, at half its weight. Each shows whole while it can, then as much as fits."
           snippet="file-name"
         >
           <div class="strip">
             <Truncate
               text={PATH}
               at="middle"
-              protect={/\/[^/]+$/}
-              tailMatch={0}
+              protect={[/\/[^/]+$/, { pattern: /^~\/[^/]+\//, weight: 0.5 }]}
               words={{ within: Infinity }}
             />
           </div>
@@ -354,13 +353,13 @@ function Gallery() {
         </Frame>
         <Frame
           title="Mentions kept whole"
-          note="A cut never splits a protected match: a mention shows whole or not at all."
+          note="A cut never splits a whole match: a mention shows whole or not at all."
           snippet="mentions"
         >
           <div class="strip">
             <Truncate
               text="Thanks @alexandra.richardson and @wolfgang.mozart for the review"
-              protect={/@[\w.]+/g}
+              protect={{ pattern: /@[\w.]+/g, whole: true }}
             />
           </div>
         </Frame>
@@ -594,13 +593,7 @@ function Layouts() {
               {(file) => (
                 <li class="row">
                   <span class="icon">TS</span>
-                  <Truncate
-                    class="grow"
-                    text={file.path}
-                    at="middle"
-                    protect={/[^/]+$/g}
-                    tailMatch={0}
-                  />
+                  <Truncate class="grow" text={file.path} at="middle" protect={/\/[^/]+$/} />
                   <span class="size">{file.size}</span>
                 </li>
               )}
@@ -622,12 +615,7 @@ function Layouts() {
                         <Truncate text={contact.name} />
                       </td>
                       <td>
-                        <Truncate
-                          text={contact.email}
-                          at="middle"
-                          protect={/@.+$/g}
-                          tailMatch={0}
-                        />
+                        <Truncate text={contact.email} at="middle" protect={/@.+$/} />
                       </td>
                     </tr>
                   )}
@@ -701,11 +689,11 @@ function Playground() {
   const [text, setText] = createSignal<string>(PRESETS[1].text);
   const [lined, setLined] = createSignal(false);
   const [at, setAt] = createSignal<"start" | "middle" | "end">("middle");
-  const [split, setSplit] = createSignal<"ratio" | "tailGraphemes" | "tailMatch">("ratio");
+  const [split, setSplit] = createSignal<"ratio" | "tailGraphemes">("ratio");
   const [ratio, setRatio] = createSignal(0.5);
   const [tailCount, setTailCount] = createSignal(8);
-  const [tailMatch, setTailMatch] = createSignal(0);
-  const [protect, setProtect] = createSignal("[^/]+$");
+  const [protect, setProtect] = createSignal("/[^/]+$");
+  const [whole, setWhole] = createSignal(false);
   const [words, setWords] = createSignal<"on" | "off" | "px">("on");
   const [wordsPx, setWordsPx] = createSignal(24);
   const [trim, setTrim] = createSignal(true);
@@ -743,9 +731,9 @@ function Playground() {
     ellipsis: ellipsis(),
     ...(at() === "middle" && split() === "ratio" ? { ratio: ratio() } : {}),
     ...(at() === "middle" && split() === "tailGraphemes" ? { tailGraphemes: tailCount() } : {}),
-    ...(at() === "middle" && split() === "tailMatch" ? { tailMatch: tailMatch() } : {}),
   }));
-  const protectOption = () => (pattern() ? { protect: pattern()! } : {});
+  const protectOption = () =>
+    pattern() ? { protect: { pattern: pattern()!, whole: whole() } } : {};
   // The cut, how long it took, and the text it refers to.
   const result = createMemo(() => {
     box.fonts();
@@ -868,7 +856,7 @@ function Playground() {
           <Show when={at() === "middle"}>
             <fieldset>
               <legend>Middle split</legend>
-              <For each={["ratio", "tailGraphemes", "tailMatch"] as const}>
+              <For each={["ratio", "tailGraphemes"] as const}>
                 {(kind) => (
                   <label class="inline">
                     <input
@@ -906,17 +894,6 @@ function Playground() {
                 />
               </label>
             </Show>
-            <Show when={split() === "tailMatch"}>
-              <label>
-                Protected match the tail starts at (from 0)
-                <input
-                  type="number"
-                  min="0"
-                  value={tailMatch()}
-                  onInput={(e) => setTailMatch(Number(e.currentTarget.value))}
-                />
-              </label>
-            </Show>
           </Show>
           <label>
             Protect matches of
@@ -928,6 +905,14 @@ function Playground() {
             <Show when={pattern() === null}>
               <span class="error">That pattern doesn't compile, so nothing is protected.</span>
             </Show>
+          </label>
+          <label class="inline">
+            <input
+              type="checkbox"
+              checked={whole()}
+              onChange={(e) => setWhole(e.currentTarget.checked)}
+            />
+            Keep each match whole or not at all
           </label>
           <fieldset>
             <legend>Word boundaries</legend>
@@ -1140,7 +1125,7 @@ function Stress() {
     const paths: Array<ReturnType<typeof prepare>> = [];
     for (const row of rows) {
       names.push(prepare(row.name, font));
-      paths.push(prepare(row.path, font, { protect: /[^/]+$/g }));
+      paths.push(prepare(row.path, font, { protect: /\/[^/]+$/ }));
     }
     return { names, paths };
   });
@@ -1153,7 +1138,7 @@ function Stress() {
         const n = names[i]!;
         const p = paths[i]!;
         draft.shown[i * 2] = toText(n, cut(n, nameWidth(), { at: "middle" }));
-        draft.shown[i * 2 + 1] = toText(p, cut(p, pathWidth(), { at: "middle", tailMatch: 0 }));
+        draft.shown[i * 2 + 1] = toText(p, cut(p, pathWidth(), { at: "middle" }));
       }
       draft.ms = performance.now() - start;
     },

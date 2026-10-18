@@ -16,8 +16,7 @@ import { Truncate } from "pretrunc/solid";
           class="grow"
           text={file.path}
           at="middle"
-          protect={/[^/]+$/}
-          tailMatch={0}
+          protect={/\/[^/]+$/}
         />
         <span class="size">
           {file.size}

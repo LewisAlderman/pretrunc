@@ -16,6 +16,7 @@ import {
   head,
   prepare,
   type Prepared,
+  type Protect,
   tail,
   truncated,
 } from "./cut.ts";
@@ -30,7 +31,7 @@ export interface CutProps extends CutOptions {
   readonly font?: string;
   /** CSS `letter-spacing` in px. Left out, it is read from the element's computed style. */
   readonly letterSpacing?: number;
-  readonly protect?: RegExp;
+  readonly protect?: Protect;
 }
 
 export interface CutHandle {

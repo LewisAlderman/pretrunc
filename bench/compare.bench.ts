@@ -255,7 +255,8 @@ describe("pretrunc against the prior art", () => {
     const width = 160;
     const ew = faceOf(FONT).m(ELLIPSIS);
     const space = faceOf(FONT).m(" ");
-    const options = { at: "middle", tailMatch: 0 } as const;
+    // The tail keeps the file name and the head the rest, as the prior art does.
+    const options = { at: "middle", ratio: 1 } as const;
     let ours: string[] = [];
     const oursCold = timeCold(makePaths, (paths) => {
       ours = Array.map(paths, (path) => {

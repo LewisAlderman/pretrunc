@@ -7,12 +7,12 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
-import { type CutOptions, head, tail, truncated } from "./cut.ts";
+import { type CutOptions, head, type Protect, tail, truncated } from "./cut.ts";
 import { observe } from "./dom.ts";
 import { clamp, prepareLines } from "./lines.ts";
-import { useBox } from "./react.ts";
+import { useBox, useProtect } from "./react.ts";
 
-export interface ClampProps extends Omit<CutOptions, "tailGraphemes" | "tailMatch"> {
+export interface ClampProps extends Omit<CutOptions, "tailGraphemes"> {
   readonly text: string;
   /** How many lines to keep. */
   readonly lines: number;
@@ -30,7 +30,7 @@ export interface ClampProps extends Omit<CutOptions, "tailGraphemes" | "tailMatc
   readonly font?: string;
   /** CSS `letter-spacing` in px. Left out, it is read from the element's computed style. */
   readonly letterSpacing?: number;
-  readonly protect?: RegExp;
+  readonly protect?: Protect;
   readonly whiteSpace?: "normal" | "pre-wrap";
   readonly wordBreak?: "normal" | "keep-all";
   readonly className?: string;
@@ -48,20 +48,19 @@ export function Clamp(props: ClampProps): ReactNode {
   const [after, setAfter] = useState<Element | null>(null);
   const [afterWidth, setAfterWidth] = useState(0);
   useEffect(() => (after ? observe(after, setAfterWidth) : undefined), [after]);
-  const source = props.protect?.source;
-  const flags = props.protect?.flags;
+  const protect = useProtect(props.protect);
   const prepared = useMemo(
     () =>
       font === undefined
         ? undefined
         : prepareLines(text, font, {
-            ...(source === undefined ? {} : { protect: new RegExp(source, flags) }),
+            ...(protect ? { protect } : {}),
             ...(whiteSpace ? { whiteSpace } : {}),
             ...(wordBreak ? { wordBreak } : {}),
             letterSpacing: spacing,
           }),
     // oxlint-disable-next-line react-hooks/exhaustive-deps -- fonts changes when a web font loads, after forget() has dropped the widths the last prepare used
-    [text, font, spacing, source, flags, whiteSpace, wordBreak, fonts],
+    [text, font, spacing, protect, whiteSpace, wordBreak, fonts],
   );
   // Clamps are few beside a table's rows, so each renders on a width change and clamps
   // only when something it reads has changed.

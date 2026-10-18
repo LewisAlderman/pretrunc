@@ -5,7 +5,7 @@ Cut text at its start, middle or end so it fits a width, on one line or across N
 In Inter at 15 px:
 
 ```text
-~/Projects/atlas…line-breaker.test.ts    middle at 260 px, the file name kept whole
+~/Proje…src/text/line-breaker.test.ts    middle at 260 px, the file name protected
 Alexandra Richardson-…                   end at 180 px, backed off to the hyphen
 …atherstonehaugh                         start at 140 px
 ```
@@ -29,14 +29,24 @@ pnpm add pretrunc
 import { cut, prepare, toText, truncated } from "pretrunc";
 
 const p = prepare("~/Projects/atlas/src/text/line-breaker.test.ts", '15px "Inter Variable"', {
-  protect: /[^/]+$/g, // the file name stays whole or goes whole
+  protect: /\/[^/]+$/, // the file name keeps the tail, cut to fit only if it must be
 });
-const c = cut(p, 240, { at: "middle", tailMatch: 0 }); // the tail starts at the file name
+const c = cut(p, 240, { at: "middle" });
 label.textContent = toText(p, c);
 if (truncated(c)) label.title = p.text;
 ```
 
-A cut is one number, the kept head and tail offsets packed together, so re-cutting thousands of rows allocates nothing; `head(c)`, `tail(c)` and `toText(p, c)` read it. Two cuts are `===` when they keep the same head and tail, so a memo can compare them. Options: `at` (`"end"`, `"start"`, `"middle"`), `ratio`, `tailGraphemes`, `tailMatch`, `words` (`true`, `false` or `{ within: px }`), `trim` and `ellipsis`, a string or the width of an element you render in its place. `font` is a CSS font shorthand or a `Face`: `canvasFace(font)`, `tableFace` from `pretrunc/metrics`, or `face(measure)` over your own.
+A cut is one number, the kept head and tail offsets packed together, so re-cutting thousands of rows allocates nothing; `head(c)`, `tail(c)` and `toText(p, c)` read it. Two cuts are `===` when they keep the same head and tail, so a memo can compare them. Options: `at` (`"end"`, `"start"`, `"middle"`), `ratio`, `tailGraphemes`, `words` (`true`, `false` or `{ within: px }`), `trim` and `ellipsis`, a string or the width of an element you render in its place.
+
+`protect` takes a pattern, a `{ pattern, weight, whole }`, or an array of them. A middle cut keeps protected matches before the rest of the text, the highest weight first (0 to 1, default 1), each on the side nearer its middle; `ratio` shares only the room they leave. A match shows whole while it fits, then as much as fits, cut on its side toward the ellipsis; with `whole: true` it shows whole or not at all, and no cut ever splits it.
+
+````ts
+// The file name first, then the first folder: "~/Projects/…/line-breaker.test.ts",
+// then "~/Pr…/line-breaker.test.ts", then "…breaker.test.ts".
+prepare(path, font, { protect: [/\/[^/]+$/, { pattern: /^~\/[^/]+\//, weight: 0.5 }] });
+// A mention shows whole or not at all.
+prepare(message, font, { protect: { pattern: /@[\w.]+/g, whole: true } });
+``` `font` is a CSS font shorthand or a `Face`: `canvasFace(font)`, `tableFace` from `pretrunc/metrics`, or `face(measure)` over your own.
 
 ## Several lines
 
@@ -45,7 +55,7 @@ import { clamp, prepareLines } from "pretrunc/lines";
 
 const p = prepareLines(story, '16px "Inter Variable"', { whiteSpace: "pre-wrap" });
 const c = clamp(p, width, { lines: 3, at: "end", after: moreButtonWidth });
-```
+````
 
 ## Solid
 
@@ -53,7 +63,7 @@ const c = clamp(p, width, { lines: 3, at: "end", after: moreButtonWidth });
 import { FontProvider, Truncate } from "pretrunc/solid";
 import { Clamp } from "pretrunc/solid/lines";
 
-<Truncate text={path} at="middle" protect={/[^/]+$/g} tailMatch={0} />
+<Truncate text={path} at="middle" protect={/\/[^/]+$/} />
 <Clamp text={story} lines={3} expanded={open()} after={<button>more</button>} />
 <FontProvider font='14px "Inter Variable"' letterSpacing={0}>
   <For each={rows()}>{(row) => <Truncate text={row.name} />}</For>
@@ -70,7 +80,7 @@ The package exports a `solid` condition pointing at its TypeScript source, which
 import { FontProvider, Truncate, useCut } from "pretrunc/react";
 import { Clamp } from "pretrunc/react/lines";
 
-<Truncate text={path} at="middle" protect={/[^/]+$/} tailMatch={0} />
+<Truncate text={path} at="middle" protect={/\/[^/]+$/} />
 <Clamp text={story} lines={3} expanded={open} after={<button>more</button>} />
 <FontProvider font='14px "Inter Variable"' letterSpacing={0}>
   {rows.map((row) => <Truncate key={row.id} text={row.name} />)}

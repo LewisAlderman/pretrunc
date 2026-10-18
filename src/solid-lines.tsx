@@ -1,11 +1,11 @@
 import type { JSX } from "@solidjs/web";
 import { createMemo, createSignal, onSettled, Show } from "solid-js";
-import { type CutOptions, head, tail, truncated } from "./cut.ts";
+import { type CutOptions, head, type Protect, tail, truncated } from "./cut.ts";
 import { observe } from "./dom.ts";
 import { clamp, prepareLines } from "./lines.ts";
 import { createBox } from "./solid.tsx";
 
-export interface ClampProps extends Omit<CutOptions, "tailGraphemes" | "tailMatch"> {
+export interface ClampProps extends Omit<CutOptions, "tailGraphemes"> {
   readonly text: string;
   /** How many lines to keep. */
   readonly lines: number;
@@ -23,7 +23,7 @@ export interface ClampProps extends Omit<CutOptions, "tailGraphemes" | "tailMatc
   readonly font?: string;
   /** CSS `letter-spacing` in px. Left out, it is read from the element's computed style. */
   readonly letterSpacing?: number;
-  readonly protect?: RegExp;
+  readonly protect?: Protect;
   readonly whiteSpace?: "normal" | "pre-wrap";
   readonly wordBreak?: "normal" | "keep-all";
   readonly class?: string;

@@ -6,5 +6,8 @@ import { Truncate } from "pretrunc/react";
 
 <Truncate
   text={message}
-  protect={/@[\w.]+/g}
+  protect={{
+    pattern: /@[\w.]+/g,
+    whole: true,
+  }}
 />;

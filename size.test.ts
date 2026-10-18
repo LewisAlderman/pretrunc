@@ -12,8 +12,10 @@ const budgets = {
   // against the benchmark (bench/) 1.8 KB, and letter spacing, tabs and cutting from a
   // range of a longer text 2.1 KB. Dropping pretext's widths with the core's when a web
   // font loads took it 1 byte past 2,464; option names that say what they count, 11
-  // more, since a bundle keeps property names whole; a `protect` without the g flag, 25.
-  "src/index.ts": 2512,
+  // more, since a bundle keeps property names whole; a `protect` without the g flag, 25;
+  // protected matches kept by weight, cut to fit when they must be, from several patterns,
+  // 250, less what dropping `tailMatch` saved.
+  "src/index.ts": 2768,
   "src/dom.ts": 400,
   // 600 was a guess before it was built; both renderings, width tracking and letter
   // spacing cost 980.
@@ -25,8 +27,9 @@ const budgets = {
   "src/lines.ts": 2048,
   "src/solid-lines.tsx": 1024,
   // The first builds came to 983 and 672: hooks over the same helpers as the Solid
-  // adapter, without JSX.
-  "src/react.ts": 1024,
+  // adapter, without JSX. `useProtect`, keeping `protect` steady across renders by its
+  // patterns, weights and wholes, took the hooks to 1,080.
+  "src/react.ts": 1088,
   "src/react-lines.ts": 768,
   "src/metrics.ts": 600,
 };

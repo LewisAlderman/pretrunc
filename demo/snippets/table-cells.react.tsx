@@ -24,7 +24,6 @@ import { Truncate } from "pretrunc/react";
             text={c.email}
             at="middle"
             protect={/@.+$/}
-            tailMatch={0}
           />
         </td>
       </tr>

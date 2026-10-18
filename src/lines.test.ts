@@ -174,7 +174,10 @@ describe("clamp", () => {
 describe("clamp examples", () => {
   it("keeps a protected match whole when it runs on past a hard break", () => {
     // The last line's cut sees only "ab", up to the break; the match goes on to "cd".
-    const p = prepareLines("ab\ncd ef", FONT, { whiteSpace: "pre-wrap", protect: /[a-d\n]+/g });
+    const p = prepareLines("ab\ncd ef", FONT, {
+      whiteSpace: "pre-wrap",
+      protect: { pattern: /[a-d\n]+/g, whole: true },
+    });
     assert.strictEqual(toText(p, clamp(p, 100, { lines: 1, words: false })), "…");
   });
 

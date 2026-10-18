@@ -4,5 +4,8 @@ import { Truncate } from "pretrunc/solid";
 
 <Truncate
   text={message}
-  protect={/@[\w.]+/g}
+  protect={{
+    pattern: /@[\w.]+/g,
+    whole: true,
+  }}
 />;
