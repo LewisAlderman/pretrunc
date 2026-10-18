@@ -187,7 +187,7 @@ describe("clamp in a real engine", () => {
     assert.isAtMost(wrapsTo(arabic, 97, 2, "start", false, "pre-wrap", 0, 15, 0), 2);
   });
 
-  it.effect("lays text out in a web font's widths once forget drops the fallback's", () =>
+  it.effect("lays text out in a web font's widths once forget drops the fallback's (#4)", () =>
     Effect.gen(function* () {
       const text =
         "Booked the cabin on the north shore for the offsite. Sleeps six, wood stove, no reception.";
