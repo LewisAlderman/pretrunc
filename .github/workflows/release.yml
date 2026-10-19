@@ -1,0 +1,48 @@
+# Versions and publishes with Changesets. While changesets wait on main, a "Version
+# Packages" pull request carries the next version and its changelog; merging it
+# publishes to npm with provenance and tags a GitHub release.
+name: Release
+
+on:
+  push:
+    branches: [main]
+    # A changeset added, or consumed by merging the version pull request.
+    paths: [".changeset/**"]
+  workflow_dispatch:
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    # Nothing to publish from a private repo, and no minutes spent finding that out.
+    if: ${{ !github.event.repository.private }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      # The version branch, its pull request and the release tag.
+      contents: write
+      pull-requests: write
+      # npm trusted publishing and provenance.
+      id-token: write
+    env:
+      VP_GIT_HOOKS: "0"
+    steps:
+      # Credentials stay, as the action pushes the version branch.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: voidzero-dev/setup-vp@68f39c78aaf39be468cabd2afb09c162574c84af # v1.21.2
+        with:
+          cache: true
+      - uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
+        with:
+          version: vp exec changeset version
+          publish: vp exec changeset publish
+          title: "chore: version packages"
+          commit: "chore: version packages"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_CONFIG_PROVENANCE: "true"

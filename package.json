@@ -1,6 +1,6 @@
 {
   "name": "pretrunc",
-  "version": "0.1.0",
+  "version": "0.0.0",
   "description": "Cut text at its start, middle or end to fit a width, measured before it paints, never overflowing",
   "keywords": [
     "canvas",
@@ -8,10 +8,13 @@
     "ellipsis",
     "middle-ellipsis",
     "pretext",
+    "react",
     "solid",
     "text",
     "truncate"
   ],
+  "homepage": "https://lewisalderman.github.io/pretrunc/",
+  "bugs": "https://github.com/LewisAlderman/pretrunc/issues",
   "license": "MIT",
   "author": "Lewis Alderman",
   "repository": {
@@ -23,7 +26,8 @@
     "src",
     "!src/**/*.test.ts",
     "!src/**/*.test.tsx",
-    "DESIGN.md"
+    "DESIGN.md",
+    "CHANGELOG.md"
   ],
   "type": "module",
   "sideEffects": false,
@@ -73,6 +77,7 @@
     "prepublishOnly": "vp run build"
   },
   "devDependencies": {
+    "@changesets/cli": "3.0.3",
     "@chenglou/pretext": "1.0.0",
     "@effect/tsgo": "0.53.1",
     "@effect/vitest": "4.0.5",

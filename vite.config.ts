@@ -6,9 +6,9 @@ import { snippets } from "./demo/snippets.ts";
 import { defaultExclude, defineConfig } from "vite-plus";
 import { playwright } from "vite-plus/test/browser-playwright";
 
-// Files we don't author: the build's output, and the bench results `vp run bench`
+// Files we don't author: the builds' output, and the bench results `vp run bench`
 // writes on every run.
-const notOurs = ["dist/**", "bench/results.*.md"];
+const notOurs = ["dist/**", "dist-demo/**", "bench/results.*.md"];
 // The demo's code to read: Twoslash type-checks it as the demo builds
 // (demo/snippets.ts), so lint leaves it alone.
 const snippetFiles = "demo/snippets/**";
@@ -41,6 +41,8 @@ export default defineConfig({
       },
       // The demo page, with hot reload, on localhost:3100.
       demo: { command: "vp dev demo --config vite.config.ts --port 3100", cache: false },
+      // The demo as a static site in dist-demo/, for GitHub Pages.
+      "demo:build": { command: "DEMO=1 vp build demo --config vite.config.ts", cache: false },
       // A font's widths where there is no canvas: `vp run metrics <font file> <out.ts> [family]`.
       metrics: { command: "node scripts/metrics.ts", cache: false },
       // dist/: the JavaScript from `vp build`, then the declarations from tsc, pointed at
@@ -104,28 +106,32 @@ export default defineConfig({
     ],
   },
   plugins: [solid(), snippets(import.meta.dirname)],
-  build: {
-    target: "esnext",
-    minify: false,
-    sourcemap: true,
-    lib: {
-      entry: {
-        index: "src/index.ts",
-        dom: "src/dom.ts",
-        lines: "src/lines.ts",
-        metrics: "src/metrics.ts",
-        solid: "src/solid.tsx",
-        "solid-lines": "src/solid-lines.tsx",
-        react: "src/react.ts",
-        "react-lines": "src/react-lines.ts",
+  // Relative, so the demo works under any path, as GitHub Pages serves it at /pretrunc/.
+  base: process.env.DEMO ? "./" : "/",
+  build: process.env.DEMO
+    ? { target: "esnext", outDir: "../dist-demo", emptyOutDir: true }
+    : {
+        target: "esnext",
+        minify: false,
+        sourcemap: true,
+        lib: {
+          entry: {
+            index: "src/index.ts",
+            dom: "src/dom.ts",
+            lines: "src/lines.ts",
+            metrics: "src/metrics.ts",
+            solid: "src/solid.tsx",
+            "solid-lines": "src/solid-lines.tsx",
+            react: "src/react.ts",
+            "react-lines": "src/react-lines.ts",
+          },
+          formats: ["es"],
+          fileName: (_format, name) => `${name}.js`,
+        },
+        rolldownOptions: {
+          external: [/^solid-js/, /^@solidjs\//, /^@chenglou\/pretext/, /^react($|\/)/],
+        },
       },
-      formats: ["es"],
-      fileName: (_format, name) => `${name}.js`,
-    },
-    rolldownOptions: {
-      external: [/^solid-js/, /^@solidjs\//, /^@chenglou\/pretext/, /^react($|\/)/],
-    },
-  },
   test: {
     exclude: [...defaultExclude, "dist/**"],
     projects: [
