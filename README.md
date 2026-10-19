@@ -184,7 +184,7 @@ A table never measures narrower than the browser, so its cuts never overflow, bu
 - `vp run demo`: the demo page, with a playground and a 2,000-row table, on `localhost:3100`.
 - `vp run build`: `dist/`, JavaScript and declarations.
 - `vp run demo:build`: the demo as a static site in `dist-demo/`, which GitHub Pages serves.
-- `vp exec changeset`: describe a change people using pretrunc would notice, for the next release's changelog. Merging the "Version Packages" pull request publishes it.
+- `vp exec changeset`: describe a change people using pretrunc would notice, for the next release's changelog. Merging the "Version Packages" pull request stages it on npm, where a maintainer approves it with two-factor authentication; once it's live it's tagged.
 
 [DESIGN.md](DESIGN.md) records the algorithm, the engine quirks it handles, the benchmarks and every decision behind them.
 

@@ -1,0 +1,50 @@
+# Tags a release once npm has it live. Releases are staged and wait for a maintainer's
+# approval (release.yml), so the tag can't be made when they're submitted: this checks
+# every hour, and on demand, whether the version on main is on npm without a tag yet,
+# and if so tags the commit that set that version and makes its GitHub release from
+# the changelog.
+name: Tag release
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: tag-release
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  tag:
+    name: Tag the live version
+    if: ${{ !github.event.repository.private }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write # the tag and GitHub release
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # The history, to find the commit that set the version.
+          fetch-depth: 0
+      - name: Tag and release the version on npm
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          name=$(jq -r .name package.json)
+          version=$(jq -r .version package.json)
+          if ! curl -sf "https://registry.npmjs.org/$name/$version" > /dev/null; then
+            echo "$name@$version isn't live on npm yet."
+            exit 0
+          fi
+          if git ls-remote --exit-code --tags origin "refs/tags/v$version" > /dev/null; then
+            echo "v$version is already tagged."
+            exit 0
+          fi
+          commit=$(git log -1 --format=%H -G "\"version\": \"$version\"" -- package.json)
+          awk -v v="$version" '$0 == "## " v {f=1; next} /^## /{f=0} f' CHANGELOG.md > notes.md
+          printf '\n```sh\npnpm add %s\n```\n\nOn npm: https://www.npmjs.com/package/%s/v/%s\n' "$name" "$name" "$version" >> notes.md
+          gh release create "v$version" --target "$commit" --title "$name $version" --notes-file notes.md
