@@ -180,6 +180,30 @@ describe("clamp in a real engine", () => {
     { arbitrary: { runs: 50 } },
   );
 
+  // Words glued into one longer than a line, which the engines break between graphemes,
+  // each measuring the part that stays its own way (#8).
+  const glued = Arbitrary.map(Arbitrary.array(latinWord, { minLength: 2, maxLength: 8 }), (w) =>
+    Array.join(w, ""),
+  );
+  it.prop(
+    "keeps a word longer than a line to its lines (#8)",
+    [
+      glued,
+      between(60, 200),
+      between(1, 4),
+      at,
+      Arbitrary.schema(Schema.Literals(["normal", "pre-wrap"])),
+      Arbitrary.schema(Schema.Literals([0, 1])),
+      Arbitrary.schema(Schema.Literals(["…", 15])),
+      Arbitrary.schema(Schema.Literals([0, 30])),
+    ],
+    ([s, width, n, where, whiteSpace, spacing, e, after]) => {
+      const input = [s, width, n, where, false, whiteSpace, spacing, e, after] as const;
+      assert.isAtMost(wrapsTo(...input), n, JSON.stringify(input));
+    },
+    { arbitrary: { runs: 300 } },
+  );
+
   it("keeps a clamp to its lines in Firefox, which breaks after a slash and not before an ellipsis (#7)", () => {
     // The head alone, once no tail fits, wrapped to a line more in Firefox.
     const path = "~/Projects/atlas/src naïve\t";
@@ -187,31 +211,14 @@ describe("clamp in a real engine", () => {
     assert.isAtMost(wrapsTo(path, 90, 2, "middle", false, "pre-wrap", 0, "…", 30), 2);
   });
 
-  // A word longer than a line, which engines break between graphemes elsewhere than the
-  // model does (#8). These are the macOS engines; Linux engines place glyphs otherwise,
-  // and there Chromium holds both, so the pins assert on macOS alone.
-  const mac = navigator.userAgent.includes("Mac OS X");
-  const engine = navigator.userAgent.includes("Firefox")
-    ? "firefox"
-    : navigator.userAgent.includes("Chrome")
-      ? "chromium"
-      : "webkit";
-  (mac && engine !== "firefox" ? it.fails : it)(
-    "keeps an end clamp of a broken word to its lines under letter spacing (#8)",
-    () => {
-      if (!mac) return;
-      const word = "src/Supercalifragilisticnaïvenaïve";
-      assert.isAtMost(wrapsTo(word, 84, 3, "end", false, "pre-wrap", 1, "…", 0), 3);
-    },
-  );
-  (mac && engine !== "webkit" ? it.fails : it)(
-    "keeps a start clamp of a broken word to its lines (#8)",
-    () => {
-      if (!mac) return;
-      const word = "line-breakerSupercalifragilistic/";
-      assert.isAtMost(wrapsTo(word, 90, 3, "start", false, "normal", 0, "…", 0), 3);
-    },
-  );
+  it("keeps a clamp of a word longer than a line to its lines, where engines kern its parts (#8)", () => {
+    // pretext had "califragilis" in 84 px and "eakerSuperc" in 90 px, a kerning pair under
+    // what the engines measure, and the ellipsis wrapped to a fourth line.
+    const spaced = "src/Supercalifragilisticnaïvenaïve";
+    const kerned = "line-breakerSupercalifragilistic/";
+    assert.isAtMost(wrapsTo(spaced, 84, 3, "end", false, "pre-wrap", 1, "…", 0), 3);
+    assert.isAtMost(wrapsTo(kerned, 90, 3, "start", false, "normal", 0, "…", 0), 3);
+  });
 
   it("keeps tabbed pre-wrap text to its lines when a tab under half a ch from its stop takes the next (sprint-poker#76)", () => {
     const beside = "中文\t~/Projects/atlas/src  poker\t~/Projects/atlas/src  ";

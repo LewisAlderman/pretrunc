@@ -1,18 +1,22 @@
 import {
   clearCache,
-  layout,
   type LayoutCursor,
   layoutNextLineRange,
+  materializeLineRange,
   type PrepareOptions as PretextOptions,
   prepareWithSegments,
   type PreparedTextWithSegments,
   walkLineRanges,
 } from "@chenglou/pretext";
 import {
-  measureRichInlineStats,
+  layoutNextRichInlineLineRange,
+  materializeRichInlineLineRange,
   prepareRichInline,
   type RichInlineBox,
+  type RichInlineCursor,
   type RichInlineItem,
+  type RichInlineLineRange,
+  walkRichInlineLineRanges,
 } from "@chenglou/pretext/rich-inline";
 import {
   type Cut,
@@ -24,7 +28,7 @@ import {
   type Protect,
   prepareRange,
 } from "./cut.ts";
-import { alsoForget, faceOf, widthOf } from "./face.ts";
+import { alsoForget, type FaceData, faceOf, widthOf } from "./face.ts";
 
 // pretext keeps its own widths by font, so a `forget` after a web font loads drops them
 // too: kept, they are the fallback's, and a clamp can fit text in fewer lines than it
@@ -94,6 +98,75 @@ let segmenter: Intl.Segmenter | undefined;
 let list = new Int32Array(64);
 let listed = 0;
 
+const graphemesOf = (text: string) => [...(segmenter ??= new Intl.Segmenter()).segment(text)];
+
+// A word longer than a line breaks between graphemes, and pretext measures the parts
+// grapheme by grapheme, where the engines measure a part as text: WebKit alone, Chromium
+// and Firefox within the whole word, its last grapheme kerned against the one after. A
+// part can come out over a px wider than pretext has it, so a line it fills to the edge
+// loses its last grapheme or box to the next line in an engine, and every line after
+// shifts (#8). This is text's widest width in an engine, measured both ways before
+// `after`, the text after it when the line ends inside a word. White space at the end
+// hangs, and a line with a tab is left to the tab checks.
+const engineWidth = (face: FaceData, spacing: number, text: string, after = "") => {
+  text = text.replace(/[ \n]+$/, "");
+  const next = graphemesOf(after.slice(0, 16))[0]?.segment;
+  return text.includes("\t")
+    ? 0
+    : Math.max(face.m(text), next ? face.m(text + next) - face.m(next) : 0) +
+        spacing * graphemesOf(text).length;
+};
+
+// Lays `line`, from `next` in `room` px, out again in less room while it starts
+// (`inside`) or ends inside a word and runs over by `widthOf`, so it gives up a break at
+// a time, as far as one grapheme: the strictest engine's line, never ending after any
+// engine's.
+const settleLine = <L extends { readonly width: number; readonly end: LayoutCursor }>(
+  line: L | null,
+  room: number,
+  inside: boolean,
+  next: (room: number) => L | null,
+  widthOf: (line: L) => number,
+) => {
+  for (
+    let fit = room, tries = 0;
+    line && (inside || line.end.graphemeIndex) && tries < 8;
+    tries++
+  ) {
+    const over = Math.max(line.width, widthOf(line)) - room;
+    if (over <= 0) break;
+    line = next((fit = Math.min(fit - over, line.width) - 0.001)) ?? line;
+  }
+  return line;
+};
+
+// pretext's next line of `p` from `c` in `room` px, settled as `settleLine` settles it
+// when it starts or ends inside a word.
+const nextLine = (
+  p: PreparedTextWithSegments,
+  face: FaceData,
+  spacing: number,
+  room: number,
+  c: LayoutCursor,
+) => {
+  const line = layoutNextLineRange(p, room, c);
+  return line && (c.graphemeIndex || line.end.graphemeIndex)
+    ? settleLine(
+        line,
+        room,
+        c.graphemeIndex > 0,
+        (room) => layoutNextLineRange(p, room, c),
+        (line) =>
+          engineWidth(
+            face,
+            spacing,
+            materializeLineRange(p, line).text,
+            graphemesOf(p.segments[line.end.segmentIndex] ?? "")[line.end.graphemeIndex]?.segment,
+          ),
+      )
+    : line;
+};
+
 // Word starts are segment starts, which pretext already gives, so only a grapheme table
 // meets the segmenter, and only once a clamp needs one: without word preference, or
 // when no word start fits.
@@ -111,9 +184,7 @@ const startsOf = (p: Internal, graphemes: boolean): Starts => {
     const segment = l.segments[i]!;
     const space = /^\s+$/.test(segment);
     let k = 0;
-    for (const grapheme of graphemes
-      ? (segmenter ??= new Intl.Segmenter()).segment(segment)
-      : [{ index: 0 }]) {
+    for (const grapheme of graphemes ? graphemesOf(segment) : [{ index: 0 }]) {
       const offset = s[i]! + grapheme.index;
       const code = text.charCodeAt(offset);
       at[n] = offset;
@@ -183,27 +254,23 @@ export const clamp = (lines: PreparedLines, width: number, options: ClampOptions
   const n = Math.max(1, options.lines);
   const length = text.length;
   const spacing = o.letterSpacing ?? 0;
+  const face = faceOf(font);
   const ew =
-    typeof ellipsis === "number"
-      ? ellipsis
-      : widthOf(faceOf(font), ellipsis) + spacing * ellipsis.length;
+    typeof ellipsis === "number" ? ellipsis : widthOf(face, ellipsis) + spacing * ellipsis.length;
+  const next = (room: number, c: LayoutCursor) => nextLine(l, face, spacing, room, c);
   const offset = (c: LayoutCursor) =>
     s[c.segmentIndex]! +
-    (c.graphemeIndex
-      ? [...(segmenter ??= new Intl.Segmenter()).segment(l.segments[c.segmentIndex]!)][
-          c.graphemeIndex
-        ]!.index
-      : 0);
+    (c.graphemeIndex ? graphemesOf(l.segments[c.segmentIndex]!)[c.graphemeIndex]!.index : 0);
   // How many lines the text from `from` takes, the first `first` px wide, counting no
   // further than one past `limit`, and one more when `after` doesn't fit beside the
-  // last. Pure arithmetic over pretext's prepared widths.
+  // last. Arithmetic over pretext's prepared widths, but for a break inside a word.
   const linesFrom = (from: LayoutCursor, first: number, limit: number, extra = after) => {
     let lines = 0;
     let c: LayoutCursor = from;
     let room = first;
     let last = 0;
     while (lines <= limit) {
-      const range = layoutNextLineRange(l, room, c);
+      const range = next(room, c);
       if (range === null) break;
       lines++;
       c = range.end;
@@ -215,7 +282,7 @@ export const clamp = (lines: PreparedLines, width: number, options: ClampOptions
   // The start of line `index` (from 0); the model has more lines than that.
   const lineStart = (index: number) => {
     let c = START;
-    for (let i = 0; i < index; i++) c = layoutNextLineRange(l, width, c)!.end;
+    for (let i = 0; i < index; i++) c = next(width, c)!.end;
     return c;
   };
   // The core's end cut of the line starting at `line`, in `room` px. A cut keeps at most
@@ -223,8 +290,8 @@ export const clamp = (lines: PreparedLines, width: number, options: ClampOptions
   // after, or to a hard break, and keeps the last one for the next cut.
   const endCut = (line: LayoutCursor, room: number, e: string | number) => {
     const from = offset(line);
-    const next = layoutNextLineRange(l, width, line);
-    const beyond = next && layoutNextLineRange(l, width, next.end);
+    const after = next(width, line);
+    const beyond = after && next(width, after.end);
     let to = beyond ? offset(beyond.end) : length;
     const hard = text.indexOf("\n", from);
     if (hard >= 0 && hard < to) to = hard;
@@ -245,20 +312,75 @@ export const clamp = (lines: PreparedLines, width: number, options: ClampOptions
   // checked with each tab as no-break spaces, as many as reach the widest a tab can
   // take, held to the text on both sides.
   const tabbed = p.tab > 0 && text.includes("\t");
-  const nbsp = "\u00a0".repeat(
-    tabbed ? Math.ceil(p.tab / (widthOf(faceOf(font), "\u00a0") + spacing)) : 0,
-  );
+  const nbsp = "\u00a0".repeat(tabbed ? Math.ceil(p.tab / (widthOf(face, "\u00a0") + spacing)) : 0);
   const { whiteSpace, wordBreak } = p.q;
   const layoutOptions = {
     ...(whiteSpace ? { whiteSpace } : {}),
     ...(wordBreak ? { wordBreak } : {}),
   };
+  // Whether the plain layout of `joined` takes n lines at most. Its lines are laid out
+  // again one by one, settled, only when one breaks inside a word.
+  const plainWithin = (joined: string) => {
+    const plain = prepareWithSegments(joined, font, p.q);
+    let broken = false;
+    let lines = walkLineRanges(
+      plain,
+      width,
+      (line) => void (broken ||= line.end.graphemeIndex > 0),
+    );
+    if (lines > n || !broken) return lines <= n;
+    lines = 0;
+    for (let c = START, line; lines <= n && (line = nextLine(plain, face, spacing, width, c));) {
+      lines++;
+      c = line.end;
+    }
+    return lines <= n;
+  };
+  // Whether the rich-inline layout of `items` takes n lines at most, each line settled
+  // as `nextLine` settles it.
+  const richWithin = (items: Array<RichInlineItem | RichInlineBox>) => {
+    const prepared = prepareRichInline(items, layoutOptions);
+    // A text part's width is its widest in an engine, or pretext's when that is wider.
+    const widest = (line: RichInlineLineRange) => {
+      let w = line.width;
+      for (const f of materializeRichInlineLineRange(prepared, line).fragments) {
+        const { text } = items[f.itemIndex] as RichInlineItem;
+        if (f.text) {
+          w += Math.max(
+            0,
+            engineWidth(
+              face,
+              spacing,
+              f.text,
+              f.sourceEnd < text.length && line.end.graphemeIndex ? text.slice(f.sourceEnd) : "",
+            ) - f.occupiedWidth,
+          );
+        }
+      }
+      return w;
+    };
+    let broken = false;
+    let c: RichInlineCursor | undefined;
+    let lines = walkRichInlineLineRanges(
+      prepared,
+      width,
+      (line) => void (broken ||= line.end.graphemeIndex > 0),
+    );
+    if (lines > n || !broken) return lines <= n;
+    for (lines = 0; lines <= n; lines++) {
+      const from = c;
+      const next = (room: number) => layoutNextRichInlineLineRange(prepared, room, from);
+      const line = settleLine(next(width), width, (from?.graphemeIndex ?? 0) > 0, next, widest);
+      if (!line) break;
+      c = line.end;
+    }
+    return lines <= n;
+  };
   // Whether text, an ellipsis and text, then `after`'s room, lay out in n lines: the
   // ellipsis given as a width and the room after as boxes of their size.
   const within = (before: string, rest: string) => {
-    if (typeof ellipsis === "string" && !after) {
-      const plain = prepareWithSegments(before + ellipsis + rest, font, p.q);
-      if (layout(plain, width, 1).lineCount > n) return false;
+    if (typeof ellipsis === "string" && !after && !plainWithin(before + ellipsis + rest)) {
+      return false;
     }
     const items: Array<RichInlineItem | RichInlineBox> = [];
     const words = (text: string) => {
@@ -273,10 +395,9 @@ export const clamp = (lines: PreparedLines, width: number, options: ClampOptions
       words(rest);
     }
     if (after) items.push({ width: after });
-    return measureRichInlineStats(prepareRichInline(items, layoutOptions), width).lineCount <= n;
+    return richWithin(items);
   };
   const held = (text: string) => text.replaceAll("\t", nbsp);
-  text.replace(/\/(?![\d…])/g, "/\u200b").replace(/…/g, "\u2060…");
   // Whether the cut keeping [0, h) and [at, length) really lays out in n lines. The
   // model lays the tail out apart from the head, and the joined line can wrap
   // differently: a tail that begins mid-word can't break where a line start could, and
@@ -288,9 +409,7 @@ export const clamp = (lines: PreparedLines, width: number, options: ClampOptions
   };
   // The grapheme start before `h`.
   const back = (h: number) => {
-    const graphemes = [
-      ...(segmenter ??= new Intl.Segmenter()).segment(text.slice(Math.max(0, h - 32), h)),
-    ];
+    const graphemes = graphemesOf(text.slice(Math.max(0, h - 32), h));
     return h - graphemes[graphemes.length - 1]!.segment.length;
   };
 
@@ -301,14 +420,8 @@ export const clamp = (lines: PreparedLines, width: number, options: ClampOptions
     const all = held(text);
     if (
       !tabbed ||
-      (layout(prepareWithSegments(all, font, p.q), width, 1).lineCount <= n &&
-        measureRichInlineStats(
-          prepareRichInline(
-            [{ text: all, font, ...(spacing ? { letterSpacing: spacing } : {}) }],
-            layoutOptions,
-          ),
-          width,
-        ).lineCount <= n)
+      (plainWithin(all) &&
+        richWithin([{ text: all, font, ...(spacing ? { letterSpacing: spacing } : {}) }]))
     ) {
       return pack(length, length);
     }
