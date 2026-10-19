@@ -1,6 +1,8 @@
 # Versions and publishes with Changesets. While changesets wait on main, a "Version
-# Packages" pull request carries the next version and its changelog; merging it
-# publishes to npm with provenance and tags a GitHub release.
+# Packages" pull request carries the next version and its changelog; merging it packs
+# the package in one job and publishes the tarball from another, the only job that can
+# reach npm, with provenance, then tags a GitHub release. npm trusts this workflow
+# through trusted publishing, so no token is stored.
 name: Release
 
 on:
@@ -14,35 +16,91 @@ concurrency:
   group: release
   cancel-in-progress: false
 
-permissions:
-  contents: read
+permissions: {}
+
+env:
+  VP_GIT_HOOKS: "0"
 
 jobs:
-  release:
+  # "version" while changesets wait, "publish" once the version pull request is merged.
+  select:
+    name: Version or publish
     # Nothing to publish from a private repo, and no minutes spent finding that out.
     if: ${{ !github.event.repository.private }}
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     permissions:
-      # The version branch, its pull request and the release tag.
-      contents: write
-      pull-requests: write
-      # npm trusted publishing and provenance.
-      id-token: write
-    env:
-      VP_GIT_HOOKS: "0"
+      contents: read
+    outputs:
+      mode: ${{ steps.select.outputs.mode }}
+      plan: ${{ steps.select.outputs.publish-plan-artifact-id }}
     steps:
-      # Credentials stay, as the action pushes the version branch.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # No dependency cache in this workflow: one a branch could write would reach a release.
       - uses: voidzero-dev/setup-vp@68f39c78aaf39be468cabd2afb09c162574c84af # v1.21.2
+      - id: select
+        uses: changesets/action/select-mode@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
+
+  version:
+    name: Open the version pull request
+    needs: select
+    if: ${{ needs.select.outputs.mode == 'version' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write # the version branch's commit
+      pull-requests: write # the version pull request
+    steps:
+      # The action commits through the GitHub API, signed, so git keeps no credentials.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          cache: true
-      - uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
+          persist-credentials: false
+      - uses: voidzero-dev/setup-vp@68f39c78aaf39be468cabd2afb09c162574c84af # v1.21.2
+      - uses: changesets/action/version@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
         with:
-          version: vp exec changeset version
-          publish: vp exec changeset publish
-          title: "chore: version packages"
-          commit: "chore: version packages"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_CONFIG_PROVENANCE: "true"
+          script: vp exec changeset version
+          commit-message: "chore: version packages"
+          pr-title: "chore: version packages"
+
+  # Builds the package (`prepack`) into a tarball, with no way to publish it.
+  pack:
+    name: Pack
+    needs: select
+    if: ${{ needs.select.outputs.mode == 'publish' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      tarballs: ${{ steps.pack.outputs.pack-dir-artifact-id }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: voidzero-dev/setup-vp@68f39c78aaf39be468cabd2afb09c162574c84af # v1.21.2
+      - id: pack
+        uses: changesets/action/pack@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
+        with:
+          publish-plan-artifact-id: ${{ needs.select.outputs.plan }}
+
+  # Publishes the packed tarball, which runs none of the package's scripts.
+  publish:
+    name: Publish to npm
+    needs: [select, pack]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # An environment, so publishing can be held for approval in the repo's settings.
+    environment: npm
+    permissions:
+      contents: write # the release tag and GitHub release
+      id-token: write # npm trusted publishing and provenance
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: voidzero-dev/setup-vp@68f39c78aaf39be468cabd2afb09c162574c84af # v1.21.2
+      - uses: changesets/action/publish@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
+        with:
+          pack-dir-artifact-id: ${{ needs.pack.outputs.tarballs }}

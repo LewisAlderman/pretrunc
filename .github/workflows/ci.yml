@@ -20,6 +20,7 @@ permissions:
 
 jobs:
   ci:
+    name: Check, test and build
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -36,5 +37,7 @@ jobs:
       - run: vp exec effect-tsgo patch --oxlint
       - run: vp exec playwright install --with-deps chromium firefox
       - run: vp check
+      # Unused files, exports and dependencies (knip.jsonc).
+      - run: vp exec knip
       - run: vp run test
       - run: vp run build

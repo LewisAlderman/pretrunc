@@ -1,0 +1,10 @@
+{
+  "$schema": "https://unpkg.com/knip@6.39.0/schema-jsonc.json",
+  // The package's entries come from `exports`, the tests, scripts and bench from the Vite
+  // config. The demo's snippets are read off disk by demo/snippets.ts, not imported.
+  "entry": ["demo/main.tsx", "demo/snippets/**"],
+  // Named in tsconfig.json's plugins, where @effect/tsgo reads it; nothing installs it.
+  "ignoreDependencies": ["@effect/language-service"],
+  // `canvasFace` is `faceOf` under its public name.
+  "ignoreIssues": { "src/face.ts": ["duplicates"] },
+}

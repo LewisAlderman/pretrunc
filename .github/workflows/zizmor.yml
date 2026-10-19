@@ -1,0 +1,35 @@
+# Audits the workflows for security mistakes, such as a publishing job that keeps git
+# credentials or reads a cache a branch could write. Fails on any finding.
+name: Workflow audit
+
+on:
+  push:
+    branches: [main]
+    paths: [".github/**"]
+  pull_request:
+    paths: [".github/**"]
+
+# A newer push to the same branch makes the run in progress moot.
+concurrency:
+  group: zizmor-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  zizmor:
+    name: zizmor
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read # the workflows to audit
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Findings print in the log and fail the job, rather than going to code scanning.
+      - uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482 # v0.6.4
+        with:
+          advanced-security: false
+          persona: pedantic
+          version: 1.16.3

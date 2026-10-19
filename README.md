@@ -110,7 +110,7 @@ The components take the same props as the Solid ones, with `className`. `<Trunca
 
 [Vite+](https://viteplus.dev) runs everything: `vp install`, then `vp run setup` once for the Git hooks and the Effect lint rules.
 
-- `vp check`: format, lint and type-check.
+- `vp check`: format, lint and type-check. `vp exec knip` finds unused files, exports and dependencies.
 - `vp run test`: every test, in Node and in Chromium, Firefox and WebKit through Playwright.
 - `vp run bench`: timings against pretext's ellipsis demo and pretext-truncate, written to `bench/results.<engine>.md`.
 - `vp run demo`: the demo page, with a playground and a 2,000-row table, on `localhost:3100`.

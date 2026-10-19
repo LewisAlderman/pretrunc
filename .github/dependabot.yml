@@ -1,0 +1,28 @@
+# Weekly pull requests that bump the pinned actions and the dependencies, one per
+# ecosystem. A release must be two weeks old first, so one pulled for being bad or
+# compromised in its first days never lands here.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 14
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: ci
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 14
+    groups:
+      dependencies:
+        patterns: ["*"]
+    commit-message:
+      prefix: build

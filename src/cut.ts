@@ -594,16 +594,3 @@ export const cutFrom = (
 
 export const cut = (prepared: Prepared, width: number, options: CutOptions = {}): Cut =>
   cutFrom(prepared, 0, width, options);
-
-/** The grapheme that starts at or contains `offset`; for pretrunc's own entries. */
-export const graphemeAt = (prepared: Prepared, offset: number): number => {
-  const { b, n } = prepared as Internal;
-  let lo = 0;
-  let hi = n;
-  while (lo < hi) {
-    const mid = (lo + hi + 1) >> 1;
-    if (b[mid]! <= offset) lo = mid;
-    else hi = mid - 1;
-  }
-  return lo;
-};

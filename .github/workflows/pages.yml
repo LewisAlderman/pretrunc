@@ -23,6 +23,7 @@ permissions:
 
 jobs:
   build:
+    name: Build the demo
     # GitHub Free serves Pages from public repos only, so a private repo skips it, at no cost.
     if: ${{ !github.event.repository.private }}
     runs-on: ubuntu-latest
@@ -43,12 +44,13 @@ jobs:
           path: dist-demo
 
   deploy:
+    name: Deploy to Pages
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
-      pages: write
-      id-token: write
+      pages: write # publish the site
+      id-token: write # prove to Pages that this workflow built it
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
