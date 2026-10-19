@@ -6,6 +6,8 @@
 
 Cut text at its start, middle or end so it fits a width, on one line or across N lines, measured before it paints. A cut never lays out wider than its box in Chromium, Firefox or WebKit. Try it in the [demo](https://lewisalderman.github.io/pretrunc/).
 
+pretrunc is before 1.0: a minor version can still change the API, and the [changelog](CHANGELOG.md) says how.
+
 In Inter at 15 px:
 
 ```text
