@@ -136,7 +136,7 @@ describe("clamp", () => {
   // A drag moves the width a pixel at a time; a clamp whose ends jump one way and back
   // reads as flicker. In the middle the head and the tail share a line, so the two
   // trade: a head that grows can push the tail's start along, and when they wrap as one
-  // run a shorter head can let the tail keep more (sprint-poker#90). There a wider box shows no less
+  // run a shorter head can let the tail keep more. There a wider box shows no less
   // text, white space and the `,;:` a trimming cut steps over aside, but for part of one
   // word in rare cases where the ellipsis or the tail's first word wraps (#1).
   it.prop(
@@ -181,13 +181,13 @@ describe("clamp examples", () => {
     assert.strictEqual(toText(p, clamp(p, 100, { lines: 1, words: false })), "…");
   });
 
-  it("keeps a tail when the ellipsis takes a line of its own (sprint-poker#87)", () => {
+  it("keeps a tail when the ellipsis takes a line of its own", () => {
     const p = prepareLines("x/y Supercalifragilistic", FONT);
     // At 42 px "…" ends its line, so the word start can't follow it; graphemes can.
     assert.strictEqual(toText(p, clamp(p, 42, { lines: 4, at: "start" })), "…percalifragilistic");
   });
 
-  it("keeps no less in the middle at a wider width, a long word at the junction (sprint-poker#90)", () => {
+  it("keeps no less in the middle at a wider width, a long word at the junction", () => {
     const p = prepareLines("Ada a re-entry Supercalifragilistic , lot Ada re-entry", FONT);
     const kept = (width: number) => {
       const c = clamp(p, width, { lines: 5, at: "middle", words: false });

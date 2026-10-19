@@ -1,9 +1,9 @@
 declare const opaque: unique symbol;
 
 /**
- * Measures text in one font: `canvasFace`, `tableFace` from a metrics table
- * (sprint-poker#54), or `face` over your own measure function. Its caches are
- * pretrunc's, so the type shows none of them.
+ * Measures text in one font: `canvasFace`, `tableFace` from a metrics table, or
+ * `face` over your own measure function. Its caches are pretrunc's, so the type shows
+ * none of them.
  */
 export interface Face {
   readonly [opaque]: true;

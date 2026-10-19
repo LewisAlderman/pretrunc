@@ -131,7 +131,7 @@ const cold = () => {
 // The median of 7 cold runs, each on a set of inputs no run has seen, built before the
 // clock starts. Engines keep their own cache of text widths, below anything `forget`
 // or `clearCache` reaches, so a run on text an earlier run measured is partly warm:
-// rerunning one set favoured whichever approach leaned on the engine's cache (sprint-poker#66).
+// rerunning one set favoured whichever approach leaned on the engine's cache.
 let sets = 0;
 const timeCold = <T>(make: (base: number) => T, run: (inputs: T) => void) => {
   const inputs = Array.makeBy(7, () => make(++sets * 1_000_000));

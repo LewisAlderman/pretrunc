@@ -1,6 +1,8 @@
 import { assert, describe, it } from "@effect/vitest";
 import { Array, Effect, Record } from "effect";
 import solid from "@solidjs/vite-plugin";
+// oxlint-disable-next-line effecttsgo/node-builtin-import -- reads the README once, at collection; no Effect platform package for that
+import { readFileSync } from "node:fs";
 import { brotliCompressSync } from "node:zlib";
 import { build } from "vite-plus";
 
@@ -71,6 +73,18 @@ describe("size", () => {
       Effect.gen(function* () {
         const bytes = yield* bundle(entry);
         assert.isAtMost(bytes, budget, `${entry} is ${bytes} bytes`);
+      }),
+    );
+  }
+
+  // The README states sizes after a `<!-- size <entry> -->` mark, in kB to one place, so
+  // a change that moves one fails here until the README says what ships.
+  const readme = readFileSync(`${import.meta.dirname}/README.md`, "utf8");
+  for (const [, entry, stated] of readme.matchAll(/<!-- size (\S+) -->([\d.]+) kB/g)) {
+    it.effect(`README states ${entry}'s size as it ships`, () =>
+      Effect.gen(function* () {
+        const bytes = yield* bundle(entry!);
+        assert.strictEqual(stated, (bytes / 1000).toFixed(1), `${entry} is ${bytes} bytes`);
       }),
     );
   }

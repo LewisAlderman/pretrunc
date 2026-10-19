@@ -1,6 +1,10 @@
 # pretrunc
 
-Cut text at its start, middle or end so it fits a width, on one line or across N lines, measured before it paints. A cut never lays out wider than its box in Chromium, Firefox or WebKit.
+[![CI](https://github.com/LewisAlderman/pretrunc/actions/workflows/ci.yml/badge.svg)](https://github.com/LewisAlderman/pretrunc/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/pretrunc)](https://www.npmjs.com/package/pretrunc)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
+Cut text at its start, middle or end so it fits a width, on one line or across N lines, measured before it paints. A cut never lays out wider than its box in Chromium, Firefox or WebKit. Try it in the [demo](https://lewisalderman.github.io/pretrunc/).
 
 In Inter at 15 px:
 
@@ -10,7 +14,7 @@ Alexandra Richardson-…                   end at 180 px, backed off to the hyph
 …atherstonehaugh                         start at 140 px
 ```
 
-- **Small.** The single-line core is 2.4 KB minified and brotli-compressed, with no dependencies. Multi-line cuts add 2 KB plus [pretext](https://github.com/chenglou/pretext), which only `pretrunc/lines` imports.
+- **Small.** The single-line core is <!-- size src/index.ts -->2.8 kB minified and brotli-compressed, with no dependencies. Multi-line cuts add <!-- size src/lines.ts -->2.5 kB plus [pretext](https://github.com/chenglou/pretext), which only `pretrunc/lines` imports.
 - **Fast.** Text is measured once, then cut at any width by arithmetic: a resize re-cuts 5,000 rows in 1 to 3 ms. Middle cuts are 2 to 3 times faster than pretext's ellipsis demo cold.
 - **Exact.** It counts kerning beside the ellipsis, WebKit's dropped kerning at break opportunities, letter spacing, ligatures and joined scripts, and never splits a grapheme.
 - **Steady.** As a box is dragged, each end of a cut moves one way; the ellipsis doesn't flicker.
@@ -40,13 +44,15 @@ A cut is one number, the kept head and tail offsets packed together, so re-cutti
 
 `protect` takes a pattern, a `{ pattern, weight, whole }`, or an array of them. A middle cut keeps protected matches before the rest of the text, the highest weight first (0 to 1, default 1), each on the side nearer its middle; `ratio` shares only the room they leave. A match shows whole while it fits, then as much as fits, cut on its side toward the ellipsis; with `whole: true` it shows whole or not at all, and no cut ever splits it.
 
-````ts
+```ts
 // The file name first, then the first folder: "~/Projects/…/line-breaker.test.ts",
 // then "~/Pr…/line-breaker.test.ts", then "…breaker.test.ts".
 prepare(path, font, { protect: [/\/[^/]+$/, { pattern: /^~\/[^/]+\//, weight: 0.5 }] });
 // A mention shows whole or not at all.
 prepare(message, font, { protect: { pattern: /@[\w.]+/g, whole: true } });
-``` `font` is a CSS font shorthand or a `Face`: `canvasFace(font)`, `tableFace` from `pretrunc/metrics`, or `face(measure)` over your own.
+```
+
+`font` is a CSS font shorthand or a `Face`: `canvasFace(font)`, `tableFace` from `pretrunc/metrics`, or `face(measure)` over your own.
 
 ## Several lines
 
@@ -55,7 +61,7 @@ import { clamp, prepareLines } from "pretrunc/lines";
 
 const p = prepareLines(story, '16px "Inter Variable"', { whiteSpace: "pre-wrap" });
 const c = clamp(p, width, { lines: 3, at: "end", after: moreButtonWidth });
-````
+```
 
 ## Solid
 
@@ -93,6 +99,13 @@ The components take the same props as the Solid ones, with `className`. `<Trunca
 
 `pretrunc/metrics` measures from a table of a font's advances and kerning, for server rendering or a worker: `vp run metrics <font file> <out.ts> [family]` writes one from a font file. A table never measures narrower than the browser, so its cuts never overflow, but can be up to 10% wider, so they may land a little early. Give text cut from a table `text-rendering: geometricPrecision`: without it, Chromium on Linux lays each glyph on a whole pixel, wider than any table can know.
 
+## Known limitations
+
+- In WebKit, a tab in `pre-wrap` text can wrap a clamp to a line more than asked, when the tab starts under half a `0` from a tab stop. pretext models WebKit's tabs with half a space there; the fix belongs in pretext ([#9](https://github.com/LewisAlderman/pretrunc/issues/9)).
+- A middle clamp can show part of one word less in a wider box, in about one case in 100,000. Ending it would cost flicker on ordinary text ([#1](https://github.com/LewisAlderman/pretrunc/issues/1)).
+- Right-to-left text is cut in logical order and renders with the element's `dir`. Mixed-direction text can reorder around a middle ellipsis.
+- Cuts made from a metrics table (`pretrunc/metrics`) never overflow, but can land up to 10% early, since a table is never narrower than any engine.
+
 ## Developing
 
 [Vite+](https://viteplus.dev) runs everything: `vp install`, then `vp run setup` once for the Git hooks and the Effect lint rules.
@@ -102,8 +115,10 @@ The components take the same props as the Solid ones, with `className`. `<Trunca
 - `vp run bench`: timings against pretext's ellipsis demo and pretext-truncate, written to `bench/results.<engine>.md`.
 - `vp run demo`: the demo page, with a playground and a 2,000-row table, on `localhost:3100`.
 - `vp run build`: `dist/`, JavaScript and declarations.
+- `vp run demo:build`: the demo as a static site in `dist-demo/`, which GitHub Pages serves.
+- `vp exec changeset`: describe a change people using pretrunc would notice, for the next release's changelog. Merging the "Version Packages" pull request publishes it.
 
-[DESIGN.md](DESIGN.md) records the algorithm, the engine quirks it handles, the benchmarks and every decision behind them. pretrunc began as a package inside sprint-poker; references like `sprint-poker#90` point at that repo's issues.
+[DESIGN.md](DESIGN.md) records the algorithm, the engine quirks it handles, the benchmarks and every decision behind them.
 
 ## Licence
 
