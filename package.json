@@ -29,8 +29,7 @@
     "src",
     "!src/**/*.test.ts",
     "!src/**/*.test.tsx",
-    "DESIGN.md",
-    "CHANGELOG.md"
+    "DESIGN.md"
   ],
   "type": "module",
   "sideEffects": false,
@@ -80,7 +79,6 @@
     "prepack": "vp run build"
   },
   "devDependencies": {
-    "@changesets/cli": "3.0.3",
     "@chenglou/pretext": "1.0.0",
     "@effect/tsgo": "0.53.1",
     "@effect/vitest": "4.0.5",
