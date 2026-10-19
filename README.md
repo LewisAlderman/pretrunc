@@ -33,9 +33,24 @@ Alexandra Richardson-…                   end at 180 px, backed off to the hyph
 
 On top of that, pretrunc counts letter spacing and tabs in `pre-wrap`, takes an element's width as its ellipsis, keeps room after the text for a "more" link, backs off to a word or hyphen and trims dangling punctuation, keeps the whole text in the page for copy, find and screen readers, and can measure from a font's metrics table where there is no canvas.
 
+pretrunc is faster in most of the benchmark, and slower where it checks its own work so that a cut never overflows.
+
+<details>
+<summary>The benchmark numbers, and where pretrunc gives up speed</summary>
+
 In the benchmark, middle cuts of 5,000 paths take 57 ms cold in Chromium where the demo takes 111, and are 2.3 to 2.7 times faster in Firefox and WebKit; re-cut at a new width they are 2.4 to 6 times faster. End cuts of 5,000 names are level with both in Chromium and twice as fast in Firefox.
 
 Where speed and never overflowing pull apart, pretrunc takes the slower road. The demo sets out to show what pretext makes possible and pretext-truncate keeps to one straightforward loop, so neither promises that a cut fits its box in every engine; that promise is what pretrunc is built around, and keeping it costs time. Start and middle clamps check their result against a full layout, and a line with a word broken across it, or within a pixel of its edge, is measured again the way the engines measure it. A cold end clamp of 500 paragraphs takes 12.6 ms in Chromium against the demo's 8.3, since pretrunc builds a table of every character on the last line so it can cut at any of them, with kerning, letter spacing, `protect` and room after. Warm, they're level. Every number, per engine, is in `bench/results.<engine>.md`.
+
+</details>
+
+### When plain pretext is the better choice
+
+- **You need layout, not only a cut.** pretext gives line positions and heights for virtualised lists, text that flows around shapes, and text drawn to canvas, SVG or WebGL. pretrunc only decides what to keep.
+- **You draw the text yourself.** pretrunc's checks are against how Chromium, Firefox and WebKit lay out text in the page. When your own renderer draws pretext's lines, pretext's line breaks are already the truth, and those checks buy nothing.
+- **You already use pretext and want only an ellipsis at the end.** The demo's `clampLines` is a few dozen lines you can own, and it clamps cold paragraphs faster.
+
+And when an ellipsis at the end of the box is all you need and the browser may measure as it paints, CSS `text-overflow: ellipsis` and `line-clamp` need no JavaScript at all.
 
 ## Install
 
@@ -60,6 +75,9 @@ if (truncated(c)) label.title = p.text;
 
 A cut is one number, the kept head and tail offsets packed together, so re-cutting thousands of rows allocates nothing; `head(c)`, `tail(c)` and `toText(p, c)` read it. Two cuts are `===` when they keep the same head and tail, so a memo can compare them. Options: `at` (`"end"`, `"start"`, `"middle"`), `ratio`, `tailGraphemes`, `words` (`true`, `false` or `{ within: px }`), `trim` and `ellipsis`, a string or the width of an element you render in its place.
 
+<details>
+<summary>Keeping parts of the text with <code>protect</code></summary>
+
 `protect` takes a pattern, a `{ pattern, weight, whole }`, or an array of them. A middle cut keeps protected matches before the rest of the text, the highest weight first (0 to 1, default 1), each on the side nearer its middle; `ratio` shares only the room they leave. A match shows whole while it fits, then as much as fits, cut on its side toward the ellipsis; with `whole: true` it shows whole or not at all, and no cut ever splits it.
 
 ```ts
@@ -69,6 +87,8 @@ prepare(path, font, { protect: [/\/[^/]+$/, { pattern: /^~\/[^/]+\//, weight: 0.
 // A mention shows whole or not at all.
 prepare(message, font, { protect: { pattern: /@[\w.]+/g, whole: true } });
 ```
+
+</details>
 
 `font` is a CSS font shorthand or a `Face`: `canvasFace(font)`, `tableFace` from `pretrunc/metrics`, or `face(measure)` over your own.
 
@@ -81,7 +101,12 @@ const p = prepareLines(story, '16px "Inter Variable"', { whiteSpace: "pre-wrap" 
 const c = clamp(p, width, { lines: 3, at: "end", after: moreButtonWidth });
 ```
 
-## Solid
+## Components
+
+`Truncate` and `Clamp` follow their element's width and font, and cut again on resize and when web fonts load. With `render="full"` they keep the whole text in the page for copying and screen readers.
+
+<details>
+<summary>Solid</summary>
 
 ```tsx
 import { FontProvider, Truncate } from "pretrunc/solid";
@@ -94,11 +119,14 @@ import { Clamp } from "pretrunc/solid/lines";
 </FontProvider>
 ```
 
-`Truncate` and `Clamp` follow their element's width and font, re-cut on resize and when web fonts load, and with `render="full"` keep the whole text in the page for copying and screen readers. `FontProvider` gives a list its font once, so its rows read no computed style.
+`FontProvider` gives a list its font once, so its rows read no computed style.
 
 The package exports a `solid` condition pointing at its TypeScript source, which Solid's Vite plugin compiles with the app; other bundlers get the built JavaScript in `dist/`.
 
-## React
+</details>
+
+<details>
+<summary>React</summary>
 
 ```tsx
 import { FontProvider, Truncate, useCut } from "pretrunc/react";
@@ -113,6 +141,8 @@ import { Clamp } from "pretrunc/react/lines";
 
 The components take the same props as the Solid ones, with `className`. `<Truncate>` reads its cut through `useSyncExternalStore`, and a cut is one number, so a resize that doesn't move a row's cut doesn't render that row. `useCut` gives `{ ref, prepared, cut }` for markup of your own, and `useBox` the width, font and letter spacing a cut follows.
 
+</details>
+
 ## No canvas
 
 `pretrunc/metrics` measures from a table of a font's advances and kerning, for server rendering or a worker: `vp run metrics <font file> <out.ts> [family]` writes one from a font file. A table never measures narrower than the browser, so its cuts never overflow, but can be up to 10% wider, so they may land a little early. Give text cut from a table `text-rendering: geometricPrecision`: without it, Chromium on Linux lays each glyph on a whole pixel, wider than any table can know.
@@ -126,6 +156,9 @@ The components take the same props as the Solid ones, with `className`. `<Trunca
 
 ## Developing
 
+<details>
+<summary>Commands, and where the design is written down</summary>
+
 [Vite+](https://viteplus.dev) runs everything: `vp install`, then `vp run setup` once for the Git hooks and the Effect lint rules.
 
 - `vp check`: format, lint and type-check. `vp exec knip` finds unused files, exports and dependencies.
@@ -137,6 +170,8 @@ The components take the same props as the Solid ones, with `className`. `<Trunca
 - `vp exec changeset`: describe a change people using pretrunc would notice, for the next release's changelog. Merging the "Version Packages" pull request publishes it.
 
 [DESIGN.md](DESIGN.md) records the algorithm, the engine quirks it handles, the benchmarks and every decision behind them.
+
+</details>
 
 ## Credits
 
