@@ -1,6 +1,6 @@
 {
   "name": "pretrunc",
-  "version": "0.1.1",
+  "version": "0.1.0",
   "description": "Cut text at its start, middle or end to fit a width, measured before it paints, never overflowing",
   "keywords": [
     "canvas",
