@@ -26,6 +26,36 @@ import { Clamp } from "../src/solid-lines.tsx";
 import { createBox, createCut, FontProvider, Truncate } from "../src/solid.tsx";
 
 const FAMILY = '"Inter Variable"';
+const REPO = "https://github.com/LewisAlderman/pretrunc";
+const INSTALL = "pnpm add pretrunc";
+
+// GitHub's mark, from Octicons (MIT).
+function GitHubMark() {
+  return (
+    <svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true" fill="currentColor">
+      <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
+    </svg>
+  );
+}
+
+// The install command, copied with one click. The button says so until the pointer or
+// focus leaves it.
+function Install() {
+  const [copied, setCopied] = createSignal(false);
+  return (
+    <div class="install">
+      <code>{INSTALL}</code>
+      <button
+        type="button"
+        onClick={() => void navigator.clipboard.writeText(INSTALL).then(() => setCopied(true))}
+        onPointerLeave={() => setCopied(false)}
+        onBlur={() => setCopied(false)}
+      >
+        {copied() ? "Copied" : "Copy"}
+      </button>
+    </div>
+  );
+}
 
 // One width for every gallery frame, set from the header; dragging a frame's corner
 // still resizes that frame alone.
@@ -270,7 +300,7 @@ function NoCanvas() {
 
 function Gallery() {
   return (
-    <section>
+    <section id="examples">
       <h2>Examples</h2>
       <p>
         Drag a frame's bottom-right corner to resize it, or set every frame at once from the top of
@@ -576,7 +606,7 @@ function OpenablePath() {
 
 function Layouts() {
   return (
-    <section>
+    <section id="layouts">
       <h2>In a layout</h2>
       <p>
         The components where they usually end up: beside other elements, in table cells, in lists
@@ -764,7 +794,7 @@ function Playground() {
   onSettled(() => () => stopMore?.());
 
   return (
-    <section>
+    <section id="playground">
       <h2>Playground</h2>
       <p>Every option, on one text. Drag the mat's corner, or the page, to resize it.</p>
       <div class="play">
@@ -1145,7 +1175,7 @@ function Stress() {
     { shown: [] as string[], ms: 0 },
   );
   return (
-    <section>
+    <section id="rows">
       <h2>Two thousand rows</h2>
       <p>
         Drag a slider: every row's name and path is cut again at the new width, 4,000 cuts. The last
@@ -1206,30 +1236,85 @@ function Stress() {
 
 function App() {
   return (
-    <main>
-      <header class="top">
-        <div>
-          <h1>pretrunc</h1>
-          <p>Cut text at its start, middle or end to fit a width, measured before it paints.</p>
-        </div>
-        <div class="every">
-          <label>
-            Every frame: {every() === undefined ? "as dragged" : `${every()} px`}
-            <input
-              type="range"
-              min="40"
-              max="560"
-              value={every() ?? 240}
-              onInput={(e) => setEvery(Number(e.currentTarget.value))}
-            />
-          </label>
-        </div>
-      </header>
-      <Playground />
-      <Gallery />
-      <Layouts />
-      <Stress />
-    </main>
+    <>
+      <nav class="bar" aria-label="Site">
+        <a class="brand" href="#top">
+          pretrunc
+        </a>
+        <ul class="sections">
+          <li>
+            <a href="#playground">Playground</a>
+          </li>
+          <li>
+            <a href="#examples">Examples</a>
+          </li>
+          <li>
+            <a href="#layouts">In a layout</a>
+          </li>
+          <li>
+            <a href="#rows">2,000 rows</a>
+          </li>
+        </ul>
+        <ul class="links">
+          <li>
+            <a href={`${REPO}#readme`}>Docs</a>
+          </li>
+          <li>
+            <a href="https://www.npmjs.com/package/pretrunc">npm</a>
+          </li>
+          <li>
+            <a class="github" href={REPO}>
+              <GitHubMark />
+              GitHub
+            </a>
+          </li>
+        </ul>
+      </nav>
+      <main id="top">
+        <header class="top">
+          <div>
+            <h1>pretrunc</h1>
+            <p>
+              Cut text at its start, middle or end to fit a width, on one line or several, measured
+              before it paints. A cut never lays out wider than its box in Chromium, Firefox or
+              WebKit. A TypeScript core, with Solid and React components.
+            </p>
+            <Install />
+          </div>
+          <div class="every">
+            <label>
+              Every frame: {every() === undefined ? "as dragged" : `${every()} px`}
+              <input
+                type="range"
+                min="40"
+                max="560"
+                value={every() ?? 240}
+                onInput={(e) => setEvery(Number(e.currentTarget.value))}
+              />
+            </label>
+          </div>
+        </header>
+        <Playground />
+        <Gallery />
+        <Layouts />
+        <Stress />
+      </main>
+      <footer class="foot">
+        <p>
+          Multi-line cuts are laid out with{" "}
+          <a href="https://github.com/chenglou/pretext">pretext</a> by{" "}
+          <a href="https://github.com/chenglou">Cheng Lou</a>, which broke the ground pretrunc
+          stands on: it showed that text can be measured and laid out in the browser before it
+          paints, fast enough to redo on every resize.{" "}
+          <a href="https://github.com/ShipItAndPray/pretext-truncate">pretext-truncate</a> put it to
+          work on truncation. The demo is set in <a href="https://rsms.me/inter/">Inter</a>.
+        </p>
+        <p>
+          MIT licensed · <a href={REPO}>Source</a> · <a href={`${REPO}/issues`}>Issues</a> ·{" "}
+          <a href={`${REPO}/releases`}>Releases</a>
+        </p>
+      </footer>
+    </>
   );
 }
 

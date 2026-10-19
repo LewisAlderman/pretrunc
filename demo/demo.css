@@ -76,6 +76,104 @@ pre {
   outline-offset: 2px;
 }
 
+/* The bar: the sections, then the docs, npm and the source. It stays in view. */
+.bar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 12px max(24px, calc((100% - 1152px) / 2));
+  border-bottom: 1px solid var(--grid-minor);
+  background: rgb(27 63 57 / 0.85);
+  backdrop-filter: blur(8px);
+}
+
+.bar ul {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bar li {
+  display: flex;
+}
+
+.bar a {
+  color: var(--rule);
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.bar a:hover {
+  color: var(--paper);
+}
+
+.bar .brand {
+  color: var(--paper);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.bar .links {
+  margin-left: auto;
+}
+
+.bar .github {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+section {
+  scroll-margin-top: 64px;
+}
+
+/* The install command, beside a copy button. */
+.install {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 20px;
+  padding: 4px 4px 4px 14px;
+  border: 1px solid var(--grid-major);
+  border-radius: 8px;
+  background: var(--mat);
+}
+
+.install code {
+  color: var(--paper);
+  font-size: 14px;
+}
+
+.install button {
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 5px;
+  background: var(--blade);
+  color: var(--ink);
+  font: 600 13px var(--font);
+  cursor: pointer;
+}
+
+/* The footer: whose work this stands on, and where the source is. */
+.foot {
+  margin: 0 max(24px, calc((100% - 1152px) / 2));
+  padding: 32px 0 48px;
+  border-top: 1px solid var(--grid-minor);
+  color: var(--ink-soft);
+  font-size: 14px;
+}
+
+.foot p {
+  color: #9fb8b0;
+}
+
 /* The header: what it is, and one control that sets every frame at once. */
 .top {
   display: flex;
@@ -232,6 +330,10 @@ pre {
 }
 
 @media (max-width: 760px) {
+  .bar .sections {
+    display: none;
+  }
+
   .play {
     grid-template-columns: 1fr;
   }

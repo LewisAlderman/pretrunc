@@ -120,6 +120,12 @@ The components take the same props as the Solid ones, with `className`. `<Trunca
 
 [DESIGN.md](DESIGN.md) records the algorithm, the engine quirks it handles, the benchmarks and every decision behind them.
 
+## Credits
+
+[pretext](https://github.com/chenglou/pretext) by [Cheng Lou](https://github.com/chenglou) broke the ground pretrunc stands on. It showed that text can be measured and laid out in the browser without asking the DOM, close enough to each engine's line breaking to trust and fast enough to redo on every resize. Knowing where lines fall before they paint makes layouts possible that the DOM makes slow or out of reach, and [its demos](https://chenglou.me/pretext/) show many of them, a cut with an ellipsis at the end and in the middle among them. `pretrunc/lines` lays out every multi-line cut with pretext.
+
+[pretext-truncate](https://github.com/ShipItAndPray/pretext-truncate) by ShipItAndPray put pretext to work on truncation, clamping text to a number of lines with no flash of the full text. Both projects are the benchmark's points of comparison, run from vendored copies credited in `bench/prior-art.ts`.
+
 ## Licence
 
 MIT. The benchmark vendors code from pretext and pretext-truncate, both MIT, with attribution in `bench/prior-art.ts`. `fixtures/inter-latin.ts` holds metrics generated from [Inter](https://rsms.me/inter/), under the SIL Open Font License 1.1; it's used by the tests and demo and isn't part of the package.
