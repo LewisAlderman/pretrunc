@@ -19,6 +19,22 @@ Alexandra Richardson-…                   end at 180 px, backed off to the hyph
 - **Exact.** It counts kerning beside the ellipsis, WebKit's dropped kerning at break opportunities, letter spacing, ligatures and joined scripts, and never splits a grapheme.
 - **Steady.** As a box is dragged, each end of a cut moves one way; the ellipsis doesn't flicker.
 
+## How it compares
+
+[pretext](https://github.com/chenglou/pretext) lays text out; it isn't a truncation library. Its [ellipsis demo](https://chenglou.me/pretext/) cuts text, as code to copy into an app. [pretext-truncate](https://github.com/ShipItAndPray/pretext-truncate) packages an end clamp. pretrunc is a library for cutting text, and the benchmark in `bench/` runs all three on the same inputs in Chromium, Firefox and WebKit.
+
+|                                   | pretrunc                                                | pretext's ellipsis demo                         | pretext-truncate                                         |
+| --------------------------------- | ------------------------------------------------------- | ----------------------------------------------- | -------------------------------------------------------- |
+| Ellipsis at the end               | one line or several                                     | one line or several                             | one line or several                                      |
+| At the start or in the middle     | one line or several                                     | the middle of one line                          | no                                                       |
+| What a middle cut keeps           | any patterns you give, by priority, whole or cut to fit | a path's file name                              | no middle cut                                            |
+| Ran over its box in the benchmark | never, in any of the three engines                      | 6 of 5,000 middle cuts in Firefox and in WebKit | 16 of 5,000 names, 107 to 109 of 500 paragraphs          |
+| Cutting again at a new width      | mostly arithmetic over widths it already holds          | lays the lines out again                        | measures from scratch, two `prepare` calls per character |
+
+On top of that, pretrunc counts letter spacing and tabs in `pre-wrap`, takes an element's width as its ellipsis, keeps room after the text for a "more" link, backs off to a word or hyphen and trims dangling punctuation, keeps the whole text in the page for copy, find and screen readers, and can measure from a font's metrics table where there is no canvas.
+
+In the benchmark, middle cuts of 5,000 paths take 57 ms cold in Chromium where the demo takes 111, and are 2.3 to 2.7 times faster in Firefox and WebKit; re-cut at a new width they are 2.4 to 6 times faster. End cuts of 5,000 names are level with both in Chromium and twice as fast in Firefox. pretrunc is slower at one thing: a cold end clamp of 500 paragraphs takes 12.6 ms in Chromium against the demo's 8.3, since it builds a table of every character on the last line so it can cut at any of them, with kerning, letter spacing, `protect` and room after. Warm, they're level. Every number, per engine, is in `bench/results.<engine>.md`.
+
 ## Install
 
 ```sh
