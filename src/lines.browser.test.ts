@@ -204,6 +204,15 @@ describe("clamp in a real engine", () => {
     { arbitrary: { runs: 300 } },
   );
 
+  // pretext 1.0.0 hangs a zero-width space at a line's end, as if it were a space; its
+  // next release lays it out as content of no width, as the engines do (#11).
+  it.fails("keeps a clamp of text with a zero-width space to its lines (#11)", () => {
+    assert.isAtMost(
+      wrapsTo("re-entryre-entry \u200b", 60, 1, "start", false, "normal", 1, 15, 0),
+      1,
+    );
+  });
+
   it("keeps a clamp to its lines in Firefox, which breaks after a slash and not before an ellipsis (#7)", () => {
     // The head alone, once no tail fits, wrapped to a line more in Firefox.
     const path = "~/Projects/atlas/src naïve\t";

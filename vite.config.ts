@@ -44,7 +44,7 @@ export default defineConfig({
       // The demo as a static site in dist-demo/, for GitHub Pages.
       "demo:build": { command: "DEMO=1 vp build demo --config vite.config.ts", cache: false },
       // A font's widths where there is no canvas: `vp run metrics <font file> <out.ts> [family]`.
-      metrics: { command: "node scripts/metrics.ts", cache: false },
+      metrics: { command: "node scripts/metrics-cli.ts", cache: false },
       // dist/: the JavaScript from `vp build`, then the declarations from tsc, pointed at
       // the built files.
       build: {
@@ -124,12 +124,21 @@ export default defineConfig({
             "solid-lines": "src/solid-lines.tsx",
             react: "src/react.ts",
             "react-lines": "src/react-lines.ts",
+            // The `pretrunc-metrics` command, for Node.
+            "metrics-cli": "scripts/metrics-cli.ts",
           },
           formats: ["es"],
           fileName: (_format, name) => `${name}.js`,
         },
         rolldownOptions: {
-          external: [/^solid-js/, /^@solidjs\//, /^@chenglou\/pretext/, /^react($|\/)/],
+          external: [
+            /^solid-js/,
+            /^@solidjs\//,
+            /^@chenglou\/pretext/,
+            /^react($|\/)/,
+            /^fontkit$/,
+            /^node:/,
+          ],
         },
       },
   test: {

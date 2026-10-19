@@ -21,6 +21,9 @@
     "type": "git",
     "url": "git+https://github.com/LewisAlderman/pretrunc.git"
   },
+  "bin": {
+    "pretrunc-metrics": "./dist/metrics-cli.js"
+  },
   "files": [
     "dist",
     "src",
@@ -108,13 +111,17 @@
     "vite-plus": "catalog:"
   },
   "peerDependencies": {
-    "@chenglou/pretext": "1.0.0",
-    "@solidjs/web": "2.0.0-rc.15",
+    "@chenglou/pretext": "^1.0.0",
+    "@solidjs/web": "^2.0.0-rc.15",
+    "fontkit": "^2.0.4",
     "react": "^19.0.0",
-    "solid-js": "2.0.0-rc.15"
+    "solid-js": "^2.0.0-rc.15"
   },
   "peerDependenciesMeta": {
     "@chenglou/pretext": {
+      "optional": true
+    },
+    "fontkit": {
       "optional": true
     },
     "@solidjs/web": {

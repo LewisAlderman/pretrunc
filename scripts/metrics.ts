@@ -1,10 +1,8 @@
-// Reads a font file and writes the widths pretrunc measures with where there is no
-// canvas: `vp run metrics <font file> <out.ts> [family]`. Every character the
-// font maps, and every pair of them the font kerns, laid out with fontkit, which applies
-// the font's GPOS kerning. A variable font is read at its default instance. Plain loops,
-// not effect, since pretrunc carries no dependencies.
-// oxlint-disable-next-line effecttsgo/node-builtin-import -- a build-time CLI writing one file; no Effect platform package for that
-import { writeFileSync } from "node:fs";
+// Reads a font file into the widths pretrunc measures with where there is no canvas:
+// every character the font maps, and every pair of them the font kerns, laid out with
+// fontkit, which applies the font's GPOS kerning. A variable font is read at its default
+// instance. Plain loops, not effect, since pretrunc carries no dependencies. The
+// `pretrunc-metrics` command (metrics-cli.ts) writes it to a module.
 import * as fontkit from "fontkit";
 import type { Metrics } from "../src/metrics.ts";
 
@@ -64,17 +62,3 @@ export const readMetrics = (file: string, family?: string, only?: string): Metri
     kerning,
   };
 };
-
-const [file, out, family] = process.argv.slice(2);
-if (import.meta.main && file && out) {
-  const metrics = readMetrics(file, family);
-  writeFileSync(
-    out,
-    `// Written by pretrunc's scripts/metrics.ts from ${file.split("/").pop()}; don't edit.\n` +
-      `import type { Metrics } from "pretrunc/metrics";\n\n` +
-      `export default ${JSON.stringify(metrics)} satisfies Metrics;\n`,
-  );
-  process.stdout.write(
-    `${metrics.family}: ${Array.from(metrics.chars).length} characters, ${metrics.kerning.length / 3} kerned pairs\n`,
-  );
-}
