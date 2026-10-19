@@ -118,19 +118,20 @@ const engineWidth = (face: FaceData, spacing: number, text: string, after = "") 
 };
 
 // Lays `line`, from `next` in `room` px, out again in less room while it starts
-// (`inside`) or ends inside a word and runs over by `widthOf`, so it gives up a break at
-// a time, as far as one grapheme: the strictest engine's line, never ending after any
-// engine's.
+// (`inside`) or ends inside a word, or is wider than `edge`, and runs over by `widthOf`,
+// so it gives up a break at a time, as far as one grapheme: the strictest engine's line,
+// never ending after any engine's.
 const settleLine = <L extends { readonly width: number; readonly end: LayoutCursor }>(
   line: L | null,
   room: number,
   inside: boolean,
+  edge: number,
   next: (room: number) => L | null,
   widthOf: (line: L) => number,
 ) => {
   for (
     let fit = room, tries = 0;
-    line && (inside || line.end.graphemeIndex) && tries < 8;
+    line && (inside || line.end.graphemeIndex || line.width > edge) && tries < 8;
     tries++
   ) {
     const over = Math.max(line.width, widthOf(line)) - room;
@@ -141,20 +142,22 @@ const settleLine = <L extends { readonly width: number; readonly end: LayoutCurs
 };
 
 // pretext's next line of `p` from `c` in `room` px, settled as `settleLine` settles it
-// when it starts or ends inside a word.
+// when it starts or ends inside a word, or is wider than `edge`.
 const nextLine = (
   p: PreparedTextWithSegments,
   face: FaceData,
   spacing: number,
   room: number,
   c: LayoutCursor,
+  edge = room,
 ) => {
   const line = layoutNextLineRange(p, room, c);
-  return line && (c.graphemeIndex || line.end.graphemeIndex)
+  return line && (c.graphemeIndex || line.end.graphemeIndex || line.width > edge)
     ? settleLine(
         line,
         room,
         c.graphemeIndex > 0,
+        edge,
         (room) => layoutNextLineRange(p, room, c),
         (line) =>
           engineWidth(
@@ -318,19 +321,26 @@ export const clamp = (lines: PreparedLines, width: number, options: ClampOptions
     ...(whiteSpace ? { whiteSpace } : {}),
     ...(wordBreak ? { wordBreak } : {}),
   };
+  // The checks also settle a line within a px of the edge: pretext can sum a line's parts
+  // narrower than an engine lays them out together, as Firefox puts "文 😀 ~/…" at 72.03 px
+  // where pretext has 71.45 (#10).
+  const edge = width - 1;
   // Whether the plain layout of `joined` takes n lines at most. Its lines are laid out
-  // again one by one, settled, only when one breaks inside a word.
+  // again one by one, settled, only when one breaks inside a word or nears the edge.
   const plainWithin = (joined: string) => {
     const plain = prepareWithSegments(joined, font, p.q);
     let broken = false;
     let lines = walkLineRanges(
       plain,
       width,
-      (line) => void (broken ||= line.end.graphemeIndex > 0),
+      (line) => void (broken ||= line.end.graphemeIndex > 0 || line.width > edge),
     );
     if (lines > n || !broken) return lines <= n;
     lines = 0;
-    for (let c = START, line; lines <= n && (line = nextLine(plain, face, spacing, width, c));) {
+    for (
+      let c = START, line;
+      lines <= n && (line = nextLine(plain, face, spacing, width, c, edge));
+    ) {
       lines++;
       c = line.end;
     }
@@ -364,13 +374,20 @@ export const clamp = (lines: PreparedLines, width: number, options: ClampOptions
     let lines = walkRichInlineLineRanges(
       prepared,
       width,
-      (line) => void (broken ||= line.end.graphemeIndex > 0),
+      (line) => void (broken ||= line.end.graphemeIndex > 0 || line.width > edge),
     );
     if (lines > n || !broken) return lines <= n;
     for (lines = 0; lines <= n; lines++) {
       const from = c;
       const next = (room: number) => layoutNextRichInlineLineRange(prepared, room, from);
-      const line = settleLine(next(width), width, (from?.graphemeIndex ?? 0) > 0, next, widest);
+      const line = settleLine(
+        next(width),
+        width,
+        (from?.graphemeIndex ?? 0) > 0,
+        edge,
+        next,
+        widest,
+      );
       if (!line) break;
       c = line.end;
     }

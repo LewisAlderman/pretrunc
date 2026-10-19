@@ -220,6 +220,12 @@ describe("clamp in a real engine", () => {
     assert.isAtMost(wrapsTo(kerned, 90, 3, "start", false, "normal", 0, "…", 0), 3);
   });
 
+  it("keeps a clamp to its lines where Firefox lays a line's parts out wider together (#10)", () => {
+    // pretext summed "文 😀 ~/…" to 71.45 px, which Firefox lays out at 72.03.
+    const text = "naïve 中文 😀 ~/Projects/atlas/src  中文\t";
+    assert.isAtMost(wrapsTo(text, 72, 4, "middle", false, "normal", 0, "…", 30), 4);
+  });
+
   it("keeps tabbed pre-wrap text to its lines when a tab under half a ch from its stop takes the next (sprint-poker#76)", () => {
     const beside = "中文\t~/Projects/atlas/src  poker\t~/Projects/atlas/src  ";
     const arabic = "مرحبا\t,\tمرحبا\nnaïve ";

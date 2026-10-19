@@ -24,8 +24,8 @@ const budgets = {
   // the room after the text: 1.5 KB; tables of tail starts, kept per text, 1.7 KB;
   // middle clamps that never show less in a wider box, 1.9 KB; tabs at their widest,
   // half a ch past a stop, 2 KB; a word longer than a line, its parts measured as the
-  // engines measure them, 2.4 KB.
-  "src/lines.ts": 2448,
+  // engines measure them, 2.4 KB, and lines near the edge too, 2,454.
+  "src/lines.ts": 2464,
   "src/solid-lines.tsx": 1024,
   // The first builds came to 983 and 672: hooks over the same helpers as the Solid
   // adapter, without JSX. `useProtect`, keeping `protect` steady across renders by its
