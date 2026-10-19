@@ -1,5 +1,11 @@
 # pretrunc
 
+## 0.1.1
+
+### Patch Changes
+
+- 299a5ae: Released from CI through npm's trusted publishing, staged and approved by a maintainer, rather than from a laptop.
+
 ## 0.1.0
 
 ### Minor Changes
