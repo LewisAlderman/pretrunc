@@ -107,13 +107,14 @@ const graphemesOf = (text: string) => [...(segmenter ??= new Intl.Segmenter()).s
 // loses its last grapheme or box to the next line in an engine, and every line after
 // shifts (#8). This is text's widest width in an engine, measured both ways before
 // `after`, the text after it when the line ends inside a word. White space at the end
-// hangs, and a line with a tab is left to the tab checks.
+// hangs, and a line with a tab is left to the tab checks. Widths are kept in the face,
+// so a clamp again at a width it has seen measures nothing.
 const engineWidth = (face: FaceData, spacing: number, text: string, after = "") => {
   text = text.replace(/[ \n]+$/, "");
   const next = graphemesOf(after.slice(0, 16))[0]?.segment;
   return text.includes("\t")
     ? 0
-    : Math.max(face.m(text), next ? face.m(text + next) - face.m(next) : 0) +
+    : Math.max(widthOf(face, text), next ? widthOf(face, text + next) - widthOf(face, next) : 0) +
         spacing * graphemesOf(text).length;
 };
 
