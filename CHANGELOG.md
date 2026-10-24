@@ -1,5 +1,7 @@
 # pretrunc
 
+Releases after 0.1.0 are described in [GitHub Releases](https://github.com/LewisAlderman/pretrunc/releases), written from their commits.
+
 ## 0.1.0
 
 ### Minor Changes

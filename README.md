@@ -6,7 +6,7 @@
 
 Cut text at its start, middle or end so it fits a width, on one line or across N lines, measured before it paints. A cut never lays out wider than its box in Chromium, Firefox or WebKit. Try it in the [demo](https://lewisalderman.github.io/pretrunc/).
 
-pretrunc is before 1.0: a minor version can still change the API, and the [changelog](CHANGELOG.md) says how.
+pretrunc is before 1.0: a minor version can still change the API, and the [release notes](https://github.com/LewisAlderman/pretrunc/releases) say how.
 
 In Inter at 15 px:
 
@@ -190,7 +190,7 @@ A table never measures narrower than the browser, so its cuts never overflow, bu
 - `vp run demo`: the demo page, with a playground and a 2,000-row table, on `localhost:3100`.
 - `vp run build`: `dist/`, JavaScript and declarations.
 - `vp run demo:build`: the demo as a static site in `dist-demo/`, which GitHub Pages serves.
-- `vp exec changeset`: describe a change people using pretrunc would notice, for the next release's changelog. Merging the "Version Packages" pull request stages it on npm, where a maintainer approves it with two-factor authentication; once it's live it's tagged.
+- Releases: every push to `main` updates a draft release pull request, with the version and changelog worked out from the Conventional Commits since the last release. Merging it tags the release and stages it on npm, where a maintainer approves it with two-factor authentication ([uppt](https://github.com/danielroe/uppt)).
 
 [DESIGN.md](DESIGN.md) records the algorithm, the engine quirks it handles, the benchmarks and every decision behind them.
 

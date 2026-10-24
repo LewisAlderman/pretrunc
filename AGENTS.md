@@ -18,7 +18,7 @@ Cuts text at its start, middle or end to fit a width, never overflowing. A frame
 - An example's code is `demo/snippets/<name>.solid.tsx` and `<name>.react.tsx`, or one `<name>.ts` when it uses no framework. `demo/snippets.test.ts` type-checks every snippet against `src/` with Twoslash, so an API change fixes the snippets it breaks in the same commit.
 - An inline lint suppression carries its reason after `--`.
 - Commits follow Conventional Commits.
-- A change people using pretrunc would notice (API, behaviour, a fixed bug, size or speed) adds a changeset in the same commit: a file in `.changeset/` naming `"pretrunc"` and its bump, with a line for the changelog. Docs, tests and tooling don't.
+- Commit subjects are the changelog: a release lists every commit since the last one, word for word, grouped by type (`feat` under Enhancements, then `perf`, `fix`, `refactor`, `docs`, `build`, `chore`, `test`, `ci`; only `chore(deps)` is left out), and a `feat` or a breaking change (`!`) sets how far the version moves. So write each subject for someone reading the release notes, and pick the type by what changed for them.
 
 ## Solid 2
 
