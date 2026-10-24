@@ -74,4 +74,14 @@ describe("Clamp", () => {
     // Centres, since WebKit snaps a range inside a joined word to whole pixels.
     assert.isBelow(ellipsis.left + ellipsis.right, before.left + before.right);
   });
+
+  it("sets no dir unless given, so existing callers lay out as before", async () => {
+    render(() => (
+      <div style={{ width: "220px", font: '15px "Inter Clamp"', "line-height": `${LINE}px` }}>
+        <Clamp text={ARABIC} lines={2} class="arabic" />
+      </div>
+    ));
+    await expect.poll(() => document.querySelector(".arabic")?.textContent).toContain("…");
+    assert.isNull(document.querySelector(".arabic")!.getAttribute("dir"));
+  });
 });

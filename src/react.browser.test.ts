@@ -94,6 +94,13 @@ describe("Truncate", () => {
     assert.isBelow(ellipsis.left + ellipsis.right, before.left + before.right);
   });
 
+  it("sets no dir unless given, so existing callers lay out as before", async () => {
+    render(h(Box, { width: 70 }, h(Truncate, { text: ARABIC })));
+    const name = page.getByTitle(ARABIC);
+    await expect.element(name).toBeInTheDocument();
+    assert.isNull(name.element().getAttribute("dir"));
+  });
+
   it("cuts to the box's letter spacing", async () => {
     render(
       h(

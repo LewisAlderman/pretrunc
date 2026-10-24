@@ -88,9 +88,12 @@ A cut is one number, the kept head and tail offsets packed together, so re-cutti
 prepare(path, font, { protect: [/\/[^/]+$/, { pattern: /^~\/[^/]+\//, weight: 0.5 }] });
 // A mention shows whole or not at all.
 prepare(message, font, { protect: { pattern: /@[\w.]+/g, whole: true } });
-// A person's first name, then their last word whole while both fit, the rest to the head
-// with ratio: 1: "Maximilian…Ortega" where an end cut shows "Maximilian Rodrigue…".
-prepare(name, font, { protect: [/^\S+/u, { pattern: /[^\s-]+$/u, weight: 0.5, whole: true }] });
+// A person's first name, then their last word whole while both fit, and the rest to the
+// head: "Maximilian…Ortega" where an end cut shows "Maximilian Rodrigue…".
+const p = prepare(name, font, {
+  protect: [/^\S+/u, { pattern: /[^\s-]+$/u, weight: 0.5, whole: true }],
+});
+cut(p, width, { at: "middle", ratio: 1 });
 ```
 
 </details>
@@ -108,7 +111,7 @@ const c = clamp(p, width, { lines: 3, at: "end", after: moreButtonWidth });
 
 ## Components
 
-`Truncate` and `Clamp` follow their element's width and font, and cut again on resize and when web fonts load. With `render="full"` they keep the whole text in the page for copying and screen readers. Both take `dir` for their element. With `dir="auto"` the text's first strong character sets its direction, so right-to-left text cut at its end shows the ellipsis on its left even in a left-to-right page; it also aligns each text to its own start in a `text-align: start` box, so in a column of mixed names right-to-left ones align right and left-to-right ones left, whatever the page, and text with no strong character, such as "22/10", reads left to right.
+`Truncate` and `Clamp` follow their element's width and font, and cut again on resize and when web fonts load. With `render="full"` they keep the whole text in the page for copying and screen readers. Both take `dir` for their element. With `dir="auto"` the first strong character of the text in the element sets its direction (with `render="kept"` and a start cut, that's the shown tail's, so the ellipsis can change sides as the cut moves past the last left-to-right word), so right-to-left text cut at its end shows the ellipsis on its left even in a left-to-right page; it also aligns each text to its own start in a `text-align: start` box, so in a column of mixed names right-to-left ones align right and left-to-right ones left, whatever the page, and text with no strong character, such as "22/10", reads left to right.
 
 <details>
 <summary>Solid</summary>
