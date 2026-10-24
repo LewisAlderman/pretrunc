@@ -79,6 +79,17 @@ describe("Truncate", () => {
     assert.isBelow(ellipsis.left + ellipsis.right, before.left + before.right);
   });
 
+  it("sets no dir unless given, so existing callers lay out as before", async () => {
+    render(() => (
+      <Box width={70}>
+        <Truncate text={ARABIC} />
+      </Box>
+    ));
+    const name = page.getByTitle(ARABIC);
+    await expect.element(name).toBeInTheDocument();
+    assert.isNull(name.element().getAttribute("dir"));
+  });
+
   // Cuts are measured left to right; laid out right to left, the neutrals between the
   // Latin runs move, and the line can come out wider than the box (#17).
   const widestOver = (setWidth: (width: number) => void, element: () => Element) => {
