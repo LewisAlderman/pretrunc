@@ -2,7 +2,7 @@ import inter from "@fontsource-variable/inter/files/inter-latin-wght-normal.woff
 import { cleanup, render } from "@solidjs/testing-library";
 import type { JSX } from "@solidjs/web";
 import { afterEach, assert, beforeAll, describe, expect, it } from "@effect/vitest";
-import { createSignal, For } from "solid-js";
+import { createSignal, flush, For } from "solid-js";
 import { vi } from "vite-plus/test";
 import { page } from "vite-plus/test/browser/context";
 import { cut, prepare } from "./cut.ts";
@@ -11,6 +11,10 @@ import { createCut, FontProvider, Truncate } from "./solid.tsx";
 
 const FAMILY = "Inter Adapter";
 const NAME = "Alexandra Richardson-Featherstonehaugh";
+const ARABIC = "محمد عبد الرحمن";
+// Right-to-left first, then Latin runs among neutrals that a right-to-left paragraph
+// reorders.
+const MIXED = "محمد A.V. — 12:30";
 
 beforeAll(() => {
   const font = new FontFace(FAMILY, `url(${inter})`);
@@ -24,6 +28,19 @@ const laidOut = (element: Element) => {
   const range = document.createRange();
   range.selectNodeContents(element);
   return range.getBoundingClientRect().width;
+};
+
+// The ellipsis's box and the grapheme's before it, in the element's first text node.
+const besideEllipsis = (element: Element) => {
+  const node = element.firstChild as Text;
+  const at = node.data.indexOf("…");
+  const range = document.createRange();
+  range.setStart(node, at);
+  range.setEnd(node, at + 1);
+  const ellipsis = range.getBoundingClientRect();
+  range.setStart(node, at - 1);
+  range.setEnd(node, at);
+  return { ellipsis, before: range.getBoundingClientRect() };
 };
 
 function Box(props: { readonly width: number; readonly children: JSX.Element }) {
@@ -47,6 +64,59 @@ describe("Truncate", () => {
     setWidth(600);
     await expect.element(page.getByText(NAME)).toBeInTheDocument();
     assert.isNull(page.getByText(NAME).element().getAttribute("title"));
+  });
+
+  it("ends right-to-left text with the ellipsis on its left in a left-to-right page, with dir auto", async () => {
+    render(() => (
+      <Box width={70}>
+        <Truncate text={ARABIC} dir="auto" />
+      </Box>
+    ));
+    const name = page.getByTitle(ARABIC);
+    await expect.element(name).toBeInTheDocument();
+    const { ellipsis, before } = besideEllipsis(name.element());
+    // Centres, since WebKit snaps a range inside a joined word to whole pixels.
+    assert.isBelow(ellipsis.left + ellipsis.right, before.left + before.right);
+  });
+
+  // Cuts are measured left to right; laid out right to left, the neutrals between the
+  // Latin runs move, and the line can come out wider than the box (#17).
+  const widestOver = (setWidth: (width: number) => void, element: () => Element) => {
+    let worst = -Infinity;
+    for (let width = 20; width <= 160; width += 0.25) {
+      setWidth(width);
+      flush();
+      worst = Math.max(worst, laidOut(element()) - width);
+    }
+    return worst;
+  };
+
+  it.fails("keeps mixed text laid out right to left by dir auto within its box (#17)", () => {
+    const [width, setWidth] = createSignal(20);
+    render(() => (
+      <Box width={width()}>
+        <Truncate text={MIXED} width={width()} dir="auto" class="mixed" />
+      </Box>
+    ));
+    assert.isAtMost(
+      widestOver(setWidth, () => document.querySelector(".mixed")!),
+      0,
+    );
+  });
+
+  it.fails("keeps mixed text under a right-to-left ancestor within its box (#17)", () => {
+    const [width, setWidth] = createSignal(20);
+    render(() => (
+      <div dir="rtl">
+        <Box width={width()}>
+          <Truncate text={MIXED} width={width()} class="mixed" />
+        </Box>
+      </div>
+    ));
+    assert.isAtMost(
+      widestOver(setWidth, () => document.querySelector(".mixed")!),
+      0,
+    );
   });
 
   it("cuts to the box's letter spacing", async () => {

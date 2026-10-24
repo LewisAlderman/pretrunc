@@ -105,7 +105,7 @@ const c = clamp(p, width, { lines: 3, at: "end", after: moreButtonWidth });
 
 ## Components
 
-`Truncate` and `Clamp` follow their element's width and font, and cut again on resize and when web fonts load. With `render="full"` they keep the whole text in the page for copying and screen readers.
+`Truncate` and `Clamp` follow their element's width and font, and cut again on resize and when web fonts load. With `render="full"` they keep the whole text in the page for copying and screen readers. Both take `dir` for their element. With `dir="auto"` the text's first strong character sets its direction, so right-to-left text cut at its end shows the ellipsis on its left even in a left-to-right page; it also aligns each text to its own start in a `text-align: start` box, so in a column of mixed names right-to-left ones align right and left-to-right ones left, whatever the page, and text with no strong character, such as "22/10", reads left to right.
 
 <details>
 <summary>Solid</summary>
@@ -168,7 +168,7 @@ A table never measures narrower than the browser, so its cuts never overflow, bu
 
 - In WebKit, a tab in `pre-wrap` text can wrap a clamp to a line more than asked, when the tab starts under half a `0` from a tab stop. pretext models WebKit's tabs with half a space there; the fix belongs in pretext ([#9](https://github.com/LewisAlderman/pretrunc/issues/9)).
 - A middle clamp can show part of one word less in a wider box, in about one case in 100,000. Ending it would cost flicker on ordinary text ([#1](https://github.com/LewisAlderman/pretrunc/issues/1)).
-- Right-to-left text is cut in logical order and renders with the element's `dir`. Mixed-direction text can reorder around a middle ellipsis.
+- Right-to-left text is cut in logical order and renders with the element's direction. Cuts are measured left to right, so mixed text laid out right to left, by `dir="rtl"`, `dir="auto"` or a right-to-left page, can run past its box by a pixel or so where neutral characters sit between its runs, as in "محمد A.V. — 12:30" ([#17](https://github.com/LewisAlderman/pretrunc/issues/17)). Mixed-direction text can also reorder around a middle ellipsis.
 - Cuts made from a metrics table (`pretrunc/metrics`) never overflow, but can land up to 10% early, since a table is never narrower than any engine.
 
 ## Developing

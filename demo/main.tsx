@@ -713,6 +713,7 @@ const PRESETS = [
   { label: "A paragraph", text: STORY },
   { label: "A build log", text: LOG },
   { label: "Several scripts", text: "👩🏽‍💻 Café naïve 🇬🇧 日本語 مرحبا بالعالم नमस्ते दुनिया" },
+  { label: "An Arabic name", text: "محمد عبد الرحمن بن عبد العزيز" },
 ] as const;
 
 function Playground() {
@@ -735,6 +736,12 @@ function Playground() {
   const [weight, setWeight] = createSignal(400);
   const [more, setMore] = createSignal(false);
   const [moreWidth, setMoreWidth] = createSignal(0);
+  // "unset" leaves the strip without a dir, as Truncate and Clamp leave theirs by default.
+  const [dir, setDir] = createSignal<"unset" | "auto" | "ltr" | "rtl">("unset");
+  const dirAttribute = () => {
+    const value = dir();
+    return value === "unset" ? undefined : value;
+  };
 
   const font = () => `${weight()} ${size()}px ${FAMILY}`;
   const box = createBox({
@@ -1002,6 +1009,22 @@ function Playground() {
               onInput={(e) => setEllipsis(e.currentTarget.value)}
             />
           </label>
+          <fieldset>
+            <legend>Direction</legend>
+            <For each={["unset", "auto", "ltr", "rtl"] as const}>
+              {(value) => (
+                <label class="inline">
+                  <input
+                    type="radio"
+                    name="dir"
+                    checked={dir() === value}
+                    onChange={() => setDir(value)}
+                  />
+                  {value}
+                </label>
+              )}
+            </For>
+          </fieldset>
           <label>
             Font size: {size()} px
             <input
@@ -1040,6 +1063,7 @@ function Playground() {
             <div
               ref={box.ref}
               class="strip"
+              dir={dirAttribute()}
               style={{
                 font: font(),
                 "letter-spacing": `${spacing()}px`,
