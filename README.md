@@ -88,6 +88,9 @@ A cut is one number, the kept head and tail offsets packed together, so re-cutti
 prepare(path, font, { protect: [/\/[^/]+$/, { pattern: /^~\/[^/]+\//, weight: 0.5 }] });
 // A mention shows whole or not at all.
 prepare(message, font, { protect: { pattern: /@[\w.]+/g, whole: true } });
+// A person's first name, then their last word whole while both fit, the rest to the head
+// with ratio: 1: "Maximilian…Ortega" where an end cut shows "Maximilian Rodrigue…".
+prepare(name, font, { protect: [/^\S+/u, { pattern: /[^\s-]+$/u, weight: 0.5, whole: true }] });
 ```
 
 </details>

@@ -572,6 +572,30 @@ textarea {
   font-size: 13px;
 }
 
+/* Name tags: a middle cut that keeps first and last words, then end cuts. */
+.names {
+  display: grid;
+  gap: 4px;
+  padding: 6px 8px;
+  font-size: 14px;
+}
+
+.caption {
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+.caption + .caption,
+.name + .caption {
+  margin-top: 6px;
+}
+
+.names .name {
+  padding: 1px 8px;
+  border-radius: 10px;
+  background: #e3ece9;
+}
+
 /* An ellipsis as a button, as wide as the room createCut was given for it. */
 .gap {
   display: inline-block;
