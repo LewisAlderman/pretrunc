@@ -11,7 +11,7 @@ describe("demo snippets", () => {
       Effect.gen(function* () {
         const html = yield* Effect.promise(() => renderSnippets(`${import.meta.dirname}/..`));
         const names = Record.keys(html);
-        assert.isAtLeast(names.length, 52);
+        assert.isAtLeast(names.length, 54);
         for (const name of names) assert.include(html[name], "twoslash-hover", name);
       }),
     60_000,

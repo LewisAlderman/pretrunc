@@ -182,6 +182,16 @@ const PEOPLE = [
   "Chen Nakamura",
   "Wilhelmina van der Berg",
 ];
+// Names that end cuts make read alike, and the words a middle cut keeps of them: the
+// first word, cut to fit if it must be, then the last word whole, the rest to the head.
+const NAMES = [
+  "Aleksandra Wiśniewska-Kowalczyk",
+  "Maximilian Rodriguez",
+  "Maximilian Rodriguez-Ortega",
+  "María José García López",
+  "محمد عبد الرحمن",
+];
+const NAME_WORDS = [{ pattern: /^\S+/u }, { pattern: /[^\s-]+$/u, weight: 0.5, whole: true }];
 const PATH = "~/Projects/atlas/packages/renderer/src/text/layout/line-breaker.test.ts";
 const STORY =
   "A weekend cabin on the north shore, twenty minutes from the ferry. Sleeps six, with a wood stove, no reception to speak of, and a rowing boat you're welcome to borrow. Bring boots: the path down to the water is steep, and the nearest shop is back across on the mainland.";
@@ -391,6 +401,22 @@ function Gallery() {
               text="Thanks @alexandra.richardson and @wolfgang.mozart for the review"
               protect={{ pattern: /@[\w.]+/g, whole: true }}
             />
+          </div>
+        </Frame>
+        <Frame
+          title="First and last names"
+          note="A middle cut keeps the first word, then the last word whole while both fit, so the two Maximilians stay apart where end cuts read the same. Once they don't, the last word goes and the head takes the room."
+          snippet="names"
+        >
+          <div class="strip names">
+            <span class="caption">First and last kept</span>
+            <For each={NAMES}>
+              {(name) => (
+                <Truncate class="name" text={name} at="middle" ratio={1} protect={NAME_WORDS} />
+              )}
+            </For>
+            <span class="caption">End cut</span>
+            <For each={NAMES}>{(name) => <Truncate class="name" text={name} />}</For>
           </div>
         </Frame>
         <Frame
