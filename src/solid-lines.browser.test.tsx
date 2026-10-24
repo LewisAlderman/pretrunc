@@ -16,6 +16,22 @@ beforeAll(() => {
 });
 afterEach(() => cleanup());
 
+const ARABIC =
+  "محمد عبد الرحمن بن عبد العزيز، من مدينة الرياض، يكتب عن السفر والطعام والكتب التي يقرأها كل شهر.";
+
+// The ellipsis's box and the grapheme's before it, in the element's first text node.
+const besideEllipsis = (element: Element) => {
+  const node = element.firstChild as Text;
+  const at = node.data.indexOf("…");
+  const range = document.createRange();
+  range.setStart(node, at);
+  range.setEnd(node, at + 1);
+  const ellipsis = range.getBoundingClientRect();
+  range.setStart(node, at - 1);
+  range.setEnd(node, at);
+  return { ellipsis, before: range.getBoundingClientRect() };
+};
+
 const lines = (element: Element) => Math.round(element.getBoundingClientRect().height / LINE);
 
 describe("Clamp", () => {
@@ -45,5 +61,17 @@ describe("Clamp", () => {
     await expect.element(page.getByRole("button", { name: "less" })).toBeInTheDocument();
     assert.include(paragraph.textContent, TEXT);
     assert.isAbove(lines(paragraph), 3);
+  });
+
+  it("ends right-to-left text with the ellipsis on its left in a left-to-right page, with dir auto", async () => {
+    render(() => (
+      <div style={{ width: "220px", font: '15px "Inter Clamp"', "line-height": `${LINE}px` }}>
+        <Clamp text={ARABIC} lines={2} dir="auto" class="arabic" />
+      </div>
+    ));
+    await expect.poll(() => document.querySelector(".arabic")?.textContent).toContain("…");
+    const { ellipsis, before } = besideEllipsis(document.querySelector(".arabic")!);
+    // Centres, since WebKit snaps a range inside a joined word to whole pixels.
+    assert.isBelow(ellipsis.left + ellipsis.right, before.left + before.right);
   });
 });

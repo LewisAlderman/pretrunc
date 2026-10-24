@@ -11,6 +11,7 @@ import { FontProvider, Truncate, useCut } from "./react.ts";
 
 const FAMILY = "Inter React";
 const NAME = "Alexandra Richardson-Featherstonehaugh";
+const ARABIC = "محمد عبد الرحمن";
 
 beforeAll(() => {
   const font = new FontFace(FAMILY, `url(${inter})`);
@@ -24,6 +25,19 @@ const laidOut = (element: Element) => {
   const range = document.createRange();
   range.selectNodeContents(element);
   return range.getBoundingClientRect().width;
+};
+
+// The ellipsis's box and the grapheme's before it, in the element's first text node.
+const besideEllipsis = (element: Element) => {
+  const node = element.firstChild as Text;
+  const at = node.data.indexOf("…");
+  const range = document.createRange();
+  range.setStart(node, at);
+  range.setEnd(node, at + 1);
+  const ellipsis = range.getBoundingClientRect();
+  range.setStart(node, at - 1);
+  range.setEnd(node, at);
+  return { ellipsis, before: range.getBoundingClientRect() };
 };
 
 const Box = (props: { readonly width: number; readonly children?: ReactNode }) =>
@@ -69,6 +83,15 @@ describe("Truncate", () => {
     box.style.width = "140px";
     await expect.element(page.getByText(/…/)).toBeInTheDocument();
     assert.isAbove(commits, settled);
+  });
+
+  it("ends right-to-left text with the ellipsis on its left in a left-to-right page, with dir auto", async () => {
+    render(h(Box, { width: 70 }, h(Truncate, { text: ARABIC, dir: "auto" })));
+    const name = page.getByTitle(ARABIC);
+    await expect.element(name).toBeInTheDocument();
+    const { ellipsis, before } = besideEllipsis(name.element());
+    // Centres, since WebKit snaps a range inside a joined word to whole pixels.
+    assert.isBelow(ellipsis.left + ellipsis.right, before.left + before.right);
   });
 
   it("cuts to the box's letter spacing", async () => {

@@ -169,6 +169,13 @@ export interface TruncateProps extends CutProps {
    * find-in-page and screen readers get the whole text. Read once.
    */
   readonly render?: "kept" | "full";
+  /**
+   * The element's `dir`, unset unless given. "auto" takes the direction from the text's
+   * first strong character, so right-to-left text cut at its end shows its ellipsis on
+   * its left in a left-to-right page. Cuts are measured left to right, so mixed text laid
+   * out right to left can run past its box by a pixel or so (#17).
+   */
+  readonly dir?: "ltr" | "rtl" | "auto";
   readonly class?: string;
 }
 
@@ -195,6 +202,7 @@ export function Truncate(props: TruncateProps): JSX.Element {
     <span
       ref={handle.ref}
       class={props.class}
+      dir={props.dir}
       style={{
         display: "block",
         overflow: "hidden",
