@@ -166,6 +166,19 @@ describe("Truncate", () => {
     assert.strictEqual(getSelection()!.toString(), NAME);
   });
 
+  it("collapses the cut part to no width under letter spacing", async () => {
+    render(
+      h(
+        "div",
+        { style: { letterSpacing: "2px" } },
+        h(Box, { width: 140 }, h(Truncate, { text: NAME, at: "middle", render: "full" })),
+      ),
+    );
+    const ellipsis = page.getByText("…");
+    await expect.element(ellipsis).toBeInTheDocument();
+    assert.isAtMost(laidOut(ellipsis.element().parentElement!), 140);
+  });
+
   it("cuts again once a web font loads, to the new font's widths", async () => {
     // A family with no face yet, as before a web font arrives: the first cut is the
     // fallback font's. A face added before render would start loading at once.

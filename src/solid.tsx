@@ -214,7 +214,8 @@ export function Truncate(props: TruncateProps): JSX.Element {
       {full ? (
         <>
           {parts()?.[0] ?? props.text}
-          <span style={{ "font-size": "0" }}>{parts()?.[1]}</span>
+          {/* Letter spacing in px doesn't shrink with the font, so it goes too. */}
+          <span style={{ "font-size": "0", "letter-spacing": "0" }}>{parts()?.[1]}</span>
           <Show when={parts()?.[3]}>
             <span
               aria-hidden="true"

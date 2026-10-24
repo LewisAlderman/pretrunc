@@ -227,7 +227,8 @@ const line = {
   whiteSpace: "nowrap",
   textOverflow: "ellipsis",
 } as const;
-const collapsed = { fontSize: 0 } as const;
+// Letter spacing in px doesn't shrink with the font, so it goes too.
+const collapsed = { fontSize: 0, letterSpacing: 0 } as const;
 const unselectable = { userSelect: "none", WebkitUserSelect: "none" } as const;
 
 /** One line of text, cut to fit its box. */
